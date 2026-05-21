@@ -5,31 +5,160 @@ const path    = require('path');
 const fs      = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 
+let Resvg;
+try {
+  ({ Resvg } = require('@resvg/resvg-js'));
+} catch {
+  console.warn('[og-image] @resvg/resvg-js not available — /og-image.png disabled');
+}
+
 const PORT        = process.env.PORT || 4001;
 const LASTFM_KEY  = process.env.LASTFM_API_KEY || '';
 const LASTFM_USER = 'mvrkws';
 const POLL_MS     = 60 * 1000; // 1 minute
+const SITE_URL    = 'https://markescence.msge.no';
 
 // ── Tracks ────────────────────────────────────────────────────────────────────
-// Mirrors the TRACKS array in index.html — only what the server needs.
+// Mirrors the TRACKS array in index.html — server adds color + releaseDate
+// so the OG image generator can use them without duplication.
 
 const TRACKS = [
-  { id: 'my-regards',                  artist: 'Maisie Peters', track: 'My Regards' },
-  { id: 'audrey-hepburn',              artist: 'Maisie Peters', track: 'Audrey Hepburn' },
-  { id: 'you-you-you',                 artist: 'Maisie Peters', track: 'You You You' },
-  { id: 'say-my-name',                 artist: 'Maisie Peters', track: 'Say My Name In Your Sleep' },
-  { id: 'kingmaker',                   artist: 'Maisie Peters', track: 'Kingmaker (with Julia Michaels)', altArtist: 'Julia Michaels' },
-  { id: 'mary-janes',                  artist: 'Maisie Peters', track: 'Mary Janes' },
-  { id: 'old-fashioned',               artist: 'Maisie Peters', track: 'Old Fashioned' },
-  { id: 'houses',                      artist: 'Maisie Peters', track: 'Houses' },
-  { id: 'vampire-time',                artist: 'Maisie Peters', track: 'Vampire Time' },
-  { id: 'if-you-let-me',               artist: 'Maisie Peters', track: 'If You Let Me (with Marcus Mumford)', altArtist: 'Marcus Mumford' },
-  { id: 'flat-earther',                artist: 'Maisie Peters', track: 'Flat Earther' },
-  { id: 'questions',                   artist: 'Maisie Peters', track: 'Questions' },
-  { id: 'girls-just-flying',           artist: 'Maisie Peters', track: "Girl's Just Flying" },
-  { id: 'you-then-me-now',             artist: 'Maisie Peters', track: 'You Then Me Now' },
-  { id: 'nothing-like-being-in-love',  artist: 'Maisie Peters', track: 'Nothing Like Being In Love' },
+  // Pre-release singles
+  { id: 'my-regards',                 artist: 'Maisie Peters', track: 'My Regards',                          display: 'My Regards',                      color: '#c4622d', releaseDate: '2026-02-06' },
+  { id: 'audrey-hepburn',             artist: 'Maisie Peters', track: 'Audrey Hepburn',                      display: 'Audrey Hepburn',                  color: '#9b7e2a', releaseDate: '2025-10-09' },
+  { id: 'you-you-you',                artist: 'Maisie Peters', track: 'You You You',                         display: 'You You You',                     color: '#4a9e7a', releaseDate: '2025-10-09' },
+  { id: 'say-my-name',                artist: 'Maisie Peters', track: 'Say My Name In Your Sleep',           display: 'Say My Name In Your Sleep',       color: '#3a7fa8', releaseDate: '2025-11-19' },
+  { id: 'kingmaker',                  artist: 'Maisie Peters', track: 'Kingmaker (with Julia Michaels)',      display: 'Kingmaker',                       color: '#8a6e9a', releaseDate: '2026-03-01', altArtist: 'Julia Michaels' },
+  // Album-only tracks
+  { id: 'mary-janes',                 artist: 'Maisie Peters', track: 'Mary Janes',                          display: 'Mary Janes',                      color: '#d4564e', releaseDate: '2026-05-22' },
+  { id: 'old-fashioned',              artist: 'Maisie Peters', track: 'Old Fashioned',                       display: 'Old Fashioned',                   color: '#c49050', releaseDate: '2026-05-22' },
+  { id: 'houses',                     artist: 'Maisie Peters', track: 'Houses',                              display: 'Houses',                          color: '#2d9e8a', releaseDate: '2026-05-22' },
+  { id: 'vampire-time',               artist: 'Maisie Peters', track: 'Vampire Time',                        display: 'Vampire Time',                    color: '#6e4eb0', releaseDate: '2026-05-22' },
+  { id: 'if-you-let-me',              artist: 'Maisie Peters', track: 'If You Let Me (with Marcus Mumford)', display: 'If You Let Me',                   color: '#4e88c4', releaseDate: '2026-05-22', altArtist: 'Marcus Mumford' },
+  { id: 'flat-earther',               artist: 'Maisie Peters', track: 'Flat Earther',                        display: 'Flat Earther',                    color: '#9e2d4e', releaseDate: '2026-05-22' },
+  { id: 'questions',                  artist: 'Maisie Peters', track: 'Questions',                           display: 'Questions',                       color: '#7a9e4e', releaseDate: '2026-05-22' },
+  { id: 'girls-just-flying',          artist: 'Maisie Peters', track: "Girl's Just Flying",                  display: "Girl's Just Flying",              color: '#c46e9e', releaseDate: '2026-05-22' },
+  { id: 'you-then-me-now',            artist: 'Maisie Peters', track: 'You Then Me Now',                     display: 'You Then Me Now',                 color: '#8a9e5a', releaseDate: '2026-05-22' },
+  { id: 'nothing-like-being-in-love', artist: 'Maisie Peters', track: 'Nothing Like Being In Love',          display: 'Nothing Like Being In Love',      color: '#4e7a9e', releaseDate: '2026-05-22' },
 ];
+
+// ── OG Image ──────────────────────────────────────────────────────────────────
+
+// Cache the generated PNG for 5 minutes so we don't re-render on every crawl.
+const ogCache = { png: null, builtAt: 0 };
+const OG_CACHE_MS = 5 * 60 * 1000;
+
+function buildOgSvg(counts) {
+  const W = 1200, H = 630;
+  const today = new Date().toISOString().slice(0, 10);
+
+  // Active tracks, sorted by play count descending; cap at 12 so bars stay legible.
+  const active = TRACKS
+    .filter(t => t.releaseDate <= today)
+    .map(t => ({ ...t, plays: counts[t.id] || 0 }))
+    .sort((a, b) => b.plays - a.plays)
+    .slice(0, 12);
+
+  const allActive = TRACKS.filter(t => t.releaseDate <= today);
+  const totalPlays = allActive.reduce((s, t) => s + (counts[t.id] || 0), 0);
+  const leader = active[0];
+  const maxPlays = Math.max(...active.map(t => t.plays), 1);
+
+  // Right panel geometry
+  const DIV_X     = 510;
+  const CHART_L   = DIV_X + 30;
+  const LABEL_W   = 150;    // track-name column
+  const BAR_X     = CHART_L + LABEL_W + 8;
+  const BAR_MAX_W = W - BAR_X - 80;  // leave room for play count text
+  const BAR_H     = 28;
+  const BAR_GAP   = 12;
+  const CHART_TOP = 72;
+
+  const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  const bars = active.map((t, i) => {
+    const y  = CHART_TOP + i * (BAR_H + BAR_GAP);
+    const bw = Math.max(3, Math.round((t.plays / maxPlays) * BAR_MAX_W));
+    const label = t.display.length > 21 ? t.display.slice(0, 20) + '…' : t.display;
+    return `
+  <text x="${CHART_L + LABEL_W}" y="${y + BAR_H * 0.72}"
+        font-family="'Courier New',Courier,monospace" font-size="11.5" fill="#8a7e6e"
+        text-anchor="end">${esc(label)}</text>
+  <rect x="${BAR_X}" y="${y + 5}" width="${bw}" height="${BAR_H - 10}"
+        fill="${t.color}" rx="2" opacity="0.88"/>
+  <text x="${BAR_X + bw + 7}" y="${y + BAR_H * 0.72}"
+        font-family="'Courier New',Courier,monospace" font-size="11" fill="${t.color}">${t.plays}</text>`;
+  }).join('');
+
+  const totalFmt = totalPlays.toLocaleString('en');
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+  <!-- background -->
+  <rect width="${W}" height="${H}" fill="#f5f0e8"/>
+  <!-- top rust accent -->
+  <rect width="${W}" height="5" fill="#c4622d" opacity="0.7"/>
+  <!-- divider -->
+  <line x1="${DIV_X}" y1="45" x2="${DIV_X}" y2="${H - 45}" stroke="#1a1208" stroke-opacity="0.1" stroke-width="1"/>
+
+  <!-- ── LEFT PANEL ── -->
+  <text x="58" y="92"
+        font-family="'Courier New',Courier,monospace" font-size="11" fill="#8a7e6e"
+        letter-spacing="3">MVRKWS · LAST.FM</text>
+
+  <text x="55" y="208"
+        font-family="Georgia,'Times New Roman',serif" font-size="76" fill="#1a1208">Marks of</text>
+  <text x="55" y="292"
+        font-family="Georgia,'Times New Roman',serif" font-size="76" fill="#c4622d"
+        font-style="italic">Florescence</text>
+  <text x="58" y="325"
+        font-family="'Courier New',Courier,monospace" font-size="11" fill="#8a7e6e"
+        letter-spacing="2">CUMULATIVE SCROBBLES</text>
+  <text x="58" y="341"
+        font-family="'Courier New',Courier,monospace" font-size="11" fill="#8a7e6e"
+        letter-spacing="2">MAISIE PETERS</text>
+
+  <!-- thin rule -->
+  <line x1="58" y1="362" x2="${DIV_X - 40}" y2="362" stroke="#8a7e6e" stroke-opacity="0.3" stroke-width="1"/>
+
+  <!-- total plays stat -->
+  <text x="58" y="432"
+        font-family="Georgia,'Times New Roman',serif" font-size="54" fill="#c4622d"
+        font-weight="bold">${totalFmt}</text>
+  <text x="58" y="454"
+        font-family="'Courier New',Courier,monospace" font-size="11" fill="#8a7e6e"
+        letter-spacing="2">TOTAL PLAYS · ${allActive.length} TRACKS</text>
+
+  <!-- leading track -->
+  <text x="58" y="516"
+        font-family="Georgia,'Times New Roman',serif" font-size="20" fill="#1a1208">${esc(leader ? leader.display : '—')}</text>
+  <text x="58" y="536"
+        font-family="'Courier New',Courier,monospace" font-size="11" fill="${leader ? leader.color : '#8a7e6e'}">${leader ? leader.plays + ' plays' : ''}</text>
+  <text x="58" y="554"
+        font-family="'Courier New',Courier,monospace" font-size="10" fill="#8a7e6e"
+        letter-spacing="1">LEADING TRACK</text>
+
+  <!-- site URL -->
+  <text x="58" y="${H - 28}"
+        font-family="'Courier New',Courier,monospace" font-size="11" fill="#8a7e6e"
+        opacity="0.7">markescence.msge.no</text>
+
+  <!-- ── RIGHT PANEL ── -->
+  <text x="${CHART_L}" y="46"
+        font-family="'Courier New',Courier,monospace" font-size="10" fill="#8a7e6e"
+        letter-spacing="3">BY TRACK</text>
+  ${bars}
+</svg>`;
+}
+
+async function buildOgPng() {
+  if (!Resvg) throw new Error('resvg not available');
+  const rows   = db.prepare('SELECT track_id, play_count FROM track_counts').all();
+  const counts = Object.fromEntries(rows.map(r => [r.track_id, r.play_count]));
+  const svg    = buildOgSvg(counts);
+  const resvg  = new Resvg(svg, { fitTo: { mode: 'width', value: 1200 } });
+  return resvg.render().asPng();
+}
 
 // ── Database ──────────────────────────────────────────────────────────────────
 
@@ -148,6 +277,7 @@ async function pollCounts() {
   }
 
   console.log('[poll] done');
+  ogCache.builtAt = 0; // invalidate OG image so next request re-renders with fresh counts
 }
 
 // ── Express ───────────────────────────────────────────────────────────────────
@@ -184,6 +314,23 @@ app.get('/api/history', (req, res) => {
     LIMIT  ?
   `).all(limit);
   res.json(rows);
+});
+
+// OG image — generated PNG, cached 5 min
+app.get('/og-image.png', async (req, res) => {
+  if (!Resvg) return res.status(501).send('og-image not available');
+  const now = Date.now();
+  try {
+    if (!ogCache.png || now - ogCache.builtAt > OG_CACHE_MS) {
+      ogCache.png     = await buildOgPng();
+      ogCache.builtAt = now;
+    }
+    res.set({ 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=300' });
+    res.send(ogCache.png);
+  } catch (err) {
+    console.error('[og-image] generation failed:', err);
+    res.status(500).send('og-image generation failed');
+  }
 });
 
 // Static files — serve index.html at root
