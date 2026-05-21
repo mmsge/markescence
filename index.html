@@ -307,11 +307,12 @@
   }
   footer a { color: var(--muted); }
 
-  .last-updated {
-    display: block;
-    margin-top: 0.4rem;
+  .last-scrobble {
     font-size: 0.55rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     color: var(--muted);
+    margin-top: 0.4rem;
     opacity: 0.7;
   }
 
@@ -366,6 +367,7 @@
       <span id="liveText">Live — updating every 60 s</span>
     </span>
   </div>
+  <p class="last-scrobble" id="lastScrobble"></p>
 </header>
 
 <div class="botanical-rule"></div>
@@ -406,7 +408,7 @@
 <footer>
   Data from <a href="https://www.last.fm/user/mvrkws" target="_blank" rel="noopener">Last.fm / mvrkws</a>
   · Chart by <a href="https://github.com/mmsge/markescence" target="_blank" rel="noopener">mmsge/markescence</a>
-  <span class="last-updated" id="lastUpdated"></span>
+
 </footer>
 
 <script>
@@ -851,7 +853,7 @@ async function refreshCounts() {
   try {
     const res = await fetch('/api/counts');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { counts, lastUpdated, demo } = await res.json();
+    const { counts, lastScrobbleTs, demo } = await res.json();
     if (demo) return;
 
     for (const td of TRACKS) {
@@ -864,8 +866,10 @@ async function refreshCounts() {
     updateStats();
     updateTrackTable();
 
-    document.getElementById('lastUpdated').textContent =
-      `Server last polled: ${new Date(lastUpdated).toLocaleTimeString()}`;
+    if (lastScrobbleTs) {
+      document.getElementById('lastScrobble').textContent =
+        `Last scrobble: ${new Date(lastScrobbleTs * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+    }
     setLiveStatus(true);
   } catch (err) {
     console.warn('Count refresh failed:', err);
@@ -951,9 +955,9 @@ async function fetchInitialCounts() {
     updateTrackTable();
     updateChartWithLive();
 
-    if (lastUpdated) {
-      document.getElementById('lastUpdated').textContent =
-        `Server last polled: ${new Date(lastUpdated).toLocaleTimeString()}`;
+    if (lastScrobbleTs) {
+      document.getElementById('lastScrobble').textContent =
+        `Last scrobble: ${new Date(lastScrobbleTs * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
     }
   } catch {
     // Network error — keep hardcoded baselines, page stays usable

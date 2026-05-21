@@ -57,6 +57,12 @@ function initDb() {
 
     CREATE INDEX IF NOT EXISTS idx_history_track ON count_history(track_id);
     CREATE INDEX IF NOT EXISTS idx_history_time  ON count_history(recorded_at);
+
+    -- Key/value store for misc server state
+    CREATE TABLE IF NOT EXISTS app_state (
+      key   TEXT PRIMARY KEY,
+      value TEXT NOT NULL
+    );
   `);
 }
 
@@ -75,6 +81,17 @@ async function lfmGet(params) {
 async function fetchTrackCount(artist, track) {
   const json = await lfmGet({ method: 'track.getInfo', artist, track, username: LASTFM_USER });
   return parseInt(json.track?.userplaycount ?? '0', 10) || 0;
+}
+
+async function fetchLastScrobbleTs() {
+  const json = await lfmGet({ method: 'user.getrecenttracks', user: LASTFM_USER, limit: '1' });
+  const tracks = json.recenttracks?.track ?? [];
+  for (const t of [tracks].flat()) {
+    if (!t['@attr']?.nowplaying && t.date?.uts) {
+      return parseInt(t.date.uts, 10);
+    }
+  }
+  return null;
 }
 
 // ── Background poller ─────────────────────────────────────────────────────────
@@ -116,6 +133,20 @@ async function pollCounts() {
     }
   }
 
+  // Fetch and store the most recent scrobble timestamp
+  try {
+    const ts = await fetchLastScrobbleTs();
+    if (ts) {
+      db.prepare(`
+        INSERT INTO app_state (key, value) VALUES ('last_scrobble_ts', ?)
+        ON CONFLICT(key) DO UPDATE SET value = excluded.value
+      `).run(String(ts));
+      console.log(`  last scrobble: ${new Date(ts * 1000).toISOString()}`);
+    }
+  } catch (err) {
+    console.warn(`  last_scrobble_ts: FAILED — ${err.message}`);
+  }
+
   console.log('[poll] done');
 }
 
@@ -126,15 +157,19 @@ const app = express();
 // Latest counts from DB — fast read, always returns something
 app.get('/api/counts', (req, res) => {
   const rows = db.prepare(
-    'SELECT track_id, play_count, updated_at FROM track_counts'
+    'SELECT track_id, play_count FROM track_counts'
   ).all();
 
-  const counts     = Object.fromEntries(rows.map(r => [r.track_id, r.play_count]));
-  const lastUpdated = rows.reduce((max, r) => r.updated_at > max ? r.updated_at : max, '');
+  const counts = Object.fromEntries(rows.map(r => [r.track_id, r.play_count]));
+
+  const tsRow = db.prepare(
+    `SELECT value FROM app_state WHERE key = 'last_scrobble_ts'`
+  ).get();
+  const lastScrobbleTs = tsRow ? parseInt(tsRow.value, 10) : null;
 
   res.json({
     counts,
-    lastUpdated,
+    lastScrobbleTs, // Unix seconds — null until first poll completes
     demo: !LASTFM_KEY,
   });
 });
