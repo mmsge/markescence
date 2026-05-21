@@ -612,7 +612,11 @@ const HISTORY = {
 };
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
-// liveDelta: additional plays discovered since page load (above baseline)
+// liveBaseline: true current play counts fetched from Last.fm on init.
+// Starts as the hardcoded baseline so the page renders instantly; overwritten
+// once fetchInitialCounts() resolves. liveDelta then adds new plays on top.
+const liveBaseline = Object.fromEntries(TRACKS.map(t => [t.id, t.baseline]));
+// liveDelta: additional plays discovered since page load (above liveBaseline)
 const liveDelta = Object.fromEntries(TRACKS.map(t => [t.id, 0]));
 let chart = null;
 let pollTimer = null;
@@ -824,7 +828,7 @@ function updateTrackTable() {
   // 0-play tracks naturally fall to the bottom after sorting.
   const totals = TRACKS.map(td => ({
     ...td,
-    plays: td.baseline + liveDelta[td.id]
+    plays: liveBaseline[td.id] + liveDelta[td.id]
   })).sort((a, b) => b.plays - a.plays);
   const max = Math.max(...totals.map(t => t.plays), 1);
   tbody.innerHTML = '';
@@ -853,7 +857,7 @@ function updateTrackTable() {
 // ── STATS ─────────────────────────────────────────────────────────────────────
 function updateStats() {
   const active = activeTracks();
-  const totals = active.map(td => td.baseline + liveDelta[td.id]);
+  const totals = active.map(td => liveBaseline[td.id] + liveDelta[td.id]);
   const total = totals.reduce((a, b) => a + b, 0);
   const leaderIdx = totals.indexOf(Math.max(...totals));
 
@@ -959,7 +963,7 @@ function updateChartWithLive() {
   activeTracks().forEach((td, i) => {
     const ds = chart.data.datasets[i];
     if (!ds) return;
-    const newVal = td.baseline + liveDelta[td.id];
+    const newVal = liveBaseline[td.id] + liveDelta[td.id];
     if (lastLabel === today) {
       ds.data[ds.data.length - 1] = newVal;
     } else {
@@ -971,6 +975,46 @@ function updateChartWithLive() {
   chart.update();
 }
 
+// ── INITIAL COUNTS ────────────────────────────────────────────────────────────
+// Fetch true current play counts for every track via track.getInfo on page load.
+// This replaces the hardcoded baselines with accurate totals immediately, so
+// stats are correct even before any new scrobble lands during this session.
+// For tracks with an altArtist (e.g. Kingmaker scrobbled under Julia Michaels),
+// both artist variants are fetched and summed.
+async function fetchInitialCounts() {
+  if (LASTFM_API_KEY.startsWith('__')) return;
+
+  async function getCount(artist, track) {
+    const url = new URL('https://ws.audioscrobbler.com/2.0/');
+    url.searchParams.set('method', 'track.getInfo');
+    url.searchParams.set('artist', artist);
+    url.searchParams.set('track', track);
+    url.searchParams.set('username', LASTFM_USER);
+    url.searchParams.set('api_key', LASTFM_API_KEY);
+    url.searchParams.set('format', 'json');
+    const res = await fetch(url.toString());
+    if (!res.ok) return 0;
+    const json = await res.json();
+    return parseInt(json.track?.userplaycount ?? '0', 10) || 0;
+  }
+
+  await Promise.all(TRACKS.map(async td => {
+    try {
+      let count = await getCount(td.artist, td.track);
+      if (td.altArtist) count += await getCount(td.altArtist, td.track);
+      // Sanity-check: Last.fm can't have fewer plays than what we already logged.
+      // Keep whichever is higher in case of a name-mismatch edge case.
+      liveBaseline[td.id] = Math.max(count, td.baseline);
+    } catch {
+      // Keep hardcoded baseline on network error — page stays usable
+    }
+  }));
+
+  updateStats();
+  updateTrackTable();
+  updateChartWithLive();
+}
+
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   _lastActiveCount = activeTracks().length;
@@ -979,9 +1023,11 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStats();
   updateTrackTable();
 
-  // start polling
-  fetchRecentScrobbles();
-  pollTimer = setInterval(fetchRecentScrobbles, POLL_INTERVAL_MS);
+  // Fetch true current play counts, then start the recurring poll
+  fetchInitialCounts().then(() => {
+    fetchRecentScrobbles();
+    pollTimer = setInterval(fetchRecentScrobbles, POLL_INTERVAL_MS);
+  });
 
   // if no API key at all, mark as demo mode
   if (LASTFM_API_KEY.startsWith('__')) {
