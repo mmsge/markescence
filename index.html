@@ -859,7 +859,7 @@ function updateStats() {
 
 // ── LIVE DATA ─────────────────────────────────────────────────────────────────
 async function fetchRecentScrobbles() {
-  if (!apiAvailable || LASTFM_API_KEY === '35af7252329c5b63c6654edfbd1b1d25') return;
+  if (!apiAvailable || LASTFM_API_KEY.startsWith('__')) return;
 
   const url = new URL('https://ws.audioscrobbler.com/2.0/');
   url.searchParams.set('method', 'user.getrecenttracks');
@@ -972,7 +972,7 @@ document.addEventListener('DOMContentLoaded', () => {
   pollTimer = setInterval(fetchRecentScrobbles, POLL_INTERVAL_MS);
 
   // if no API key at all, mark as demo mode
-  if (LASTFM_API_KEY === '35af7252329c5b63c6654edfbd1b1d25') {
+  if (LASTFM_API_KEY.startsWith('__')) {
     setLiveStatus(false);
     document.getElementById('liveText').textContent = 'Demo mode — no API key';
   }
