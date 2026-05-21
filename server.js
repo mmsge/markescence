@@ -8,7 +8,7 @@ const { DatabaseSync } = require('node:sqlite');
 const PORT        = process.env.PORT || 4001;
 const LASTFM_KEY  = process.env.LASTFM_API_KEY || '';
 const LASTFM_USER = 'mvrkws';
-const POLL_MS     = 5 * 60 * 1000; // 5 minutes
+const POLL_MS     = 60 * 1000; // 1 minute
 
 // ── Tracks ────────────────────────────────────────────────────────────────────
 // Mirrors the TRACKS array in index.html — only what the server needs.
@@ -137,25 +137,6 @@ app.get('/api/counts', (req, res) => {
     lastUpdated,
     demo: !LASTFM_KEY,
   });
-});
-
-// Proxy recent scrobbles — keeps API key off the client
-app.get('/api/recent', async (req, res) => {
-  if (!LASTFM_KEY) {
-    return res.status(503).json({ error: 'no-api-key', demo: true });
-  }
-  const from = req.query.from ?? Math.floor(Date.now() / 1000 - 120);
-  try {
-    const json = await lfmGet({
-      method: 'user.getrecenttracks',
-      user:   LASTFM_USER,
-      limit:  '200',
-      from:   String(from),
-    });
-    res.json(json);
-  } catch (err) {
-    res.status(502).json({ error: err.message });
-  }
 });
 
 // Time-series history from DB (useful for debugging / future chart features)

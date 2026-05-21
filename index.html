@@ -411,7 +411,7 @@
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 60_000; // re-fetch /api/counts this often
 
 // All Florescence tracks.
 // releaseDate gates when a track appears on the chart/table/stats.
@@ -610,38 +610,17 @@ const HISTORY = {
 };
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
-// liveBaseline: true current play counts fetched from Last.fm on init.
-// Starts as the hardcoded baseline so the page renders instantly; overwritten
-// once fetchInitialCounts() resolves. liveDelta then adds new plays on top.
+// liveBaseline: play counts from the server DB, refreshed every 60 s.
+// Starts as hardcoded baseline so the page renders instantly.
 const liveBaseline = Object.fromEntries(TRACKS.map(t => [t.id, t.baseline]));
-// liveDelta: additional plays discovered since page load (above liveBaseline)
-const liveDelta = Object.fromEntries(TRACKS.map(t => [t.id, 0]));
 let chart = null;
 let pollTimer = null;
-let apiAvailable = true;
-
-// We track the last scrobble timestamp to avoid double-counting
-let lastScrobbleTs = Math.floor(Date.now() / 1000);
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 // Returns only tracks whose releaseDate is today or earlier.
 function activeTracks() {
   const today = new Date().toISOString().slice(0, 10);
   return TRACKS.filter(td => !td.releaseDate || td.releaseDate <= today);
-}
-
-function matchTrack(artist, track) {
-  const a = artist.toLowerCase();
-  const t = track.toLowerCase();
-  // Match against ALL tracks (not just active) so scrobbles on release day
-  // are captured even before the next poll cycle refreshes active list.
-  for (const td of TRACKS) {
-    if (
-      t === td.track.toLowerCase() &&
-      (a === td.artist.toLowerCase() || (td.altArtist && a === td.altArtist.toLowerCase()))
-    ) return td.id;
-  }
-  return null;
 }
 
 function fmt(n) { return n.toLocaleString('en'); }
@@ -826,7 +805,7 @@ function updateTrackTable() {
   // 0-play tracks naturally fall to the bottom after sorting.
   const totals = TRACKS.map(td => ({
     ...td,
-    plays: liveBaseline[td.id] + liveDelta[td.id]
+    plays: liveBaseline[td.id]
   })).sort((a, b) => b.plays - a.plays);
   const max = Math.max(...totals.map(t => t.plays), 1);
   tbody.innerHTML = '';
@@ -855,7 +834,7 @@ function updateTrackTable() {
 // ── STATS ─────────────────────────────────────────────────────────────────────
 function updateStats() {
   const active = activeTracks();
-  const totals = active.map(td => liveBaseline[td.id] + liveDelta[td.id]);
+  const totals = active.map(td => liveBaseline[td.id]);
   const total = totals.reduce((a, b) => a + b, 0);
   const leaderIdx = totals.indexOf(Math.max(...totals));
 
@@ -865,51 +844,31 @@ function updateStats() {
     active[leaderIdx].display.split(' ').slice(0, 2).join(' ');
 }
 
-// ── LIVE DATA ─────────────────────────────────────────────────────────────────
-async function fetchRecentScrobbles() {
-  if (!apiAvailable) return;
-
+// ── LIVE REFRESH ──────────────────────────────────────────────────────────────
+// Re-fetches /api/counts from the server DB (which the background poller keeps
+// current every 60 s). No direct Last.fm calls from the browser.
+async function refreshCounts() {
   try {
-    const res = await fetch(`/api/recent?from=${lastScrobbleTs}`);
+    const res = await fetch('/api/counts');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (json.demo) return; // server has no API key
-    const tracks = json.recenttracks?.track ?? [];
+    const { counts, lastUpdated, demo } = await res.json();
+    if (demo) return;
 
-    let newPlays = 0;
-    let maxTs = lastScrobbleTs;
-
-    for (const t of tracks) {
-      // skip currently-playing entry (no date attr)
-      if (t['@attr']?.nowplaying) continue;
-      const ts = parseInt(t.date?.uts ?? 0, 10);
-      if (ts <= lastScrobbleTs) continue;
-      if (ts > maxTs) maxTs = ts;
-
-      const id = matchTrack(t.artist['#text'], t.name);
-      if (id) {
-        liveDelta[id]++;
-        newPlays++;
-      }
+    for (const td of TRACKS) {
+      const n = counts[td.id];
+      if (typeof n === 'number') liveBaseline[td.id] = Math.max(n, td.baseline);
     }
 
-    // Always re-evaluate active tracks — catches the date crossing midnight
-    // (e.g. May 22 album drop) even before the first new scrobble arrives.
     refreshActiveView();
-
-    if (newPlays > 0) {
-      lastScrobbleTs = maxTs;
-      updateChartWithLive();
-      updateStats();
-      updateTrackTable();
-    }
+    updateChartWithLive();
+    updateStats();
+    updateTrackTable();
 
     document.getElementById('lastUpdated').textContent =
-      `Last checked: ${new Date().toLocaleTimeString()}`;
+      `Server last polled: ${new Date(lastUpdated).toLocaleTimeString()}`;
     setLiveStatus(true);
-
   } catch (err) {
-    console.warn('Last.fm fetch failed:', err);
+    console.warn('Count refresh failed:', err);
     setLiveStatus(false);
   }
 }
@@ -943,7 +902,7 @@ function refreshActiveView() {
   }
 }
 
-// Append a new live data point to the chart (today's date, updated totals)
+// Update or append today's data point on the chart with the latest server counts.
 function updateChartWithLive() {
   if (!chart) return;
   const today = new Date().toISOString().slice(0, 10);
@@ -954,7 +913,7 @@ function updateChartWithLive() {
   activeTracks().forEach((td, i) => {
     const ds = chart.data.datasets[i];
     if (!ds) return;
-    const newVal = liveBaseline[td.id] + liveDelta[td.id];
+    const newVal = liveBaseline[td.id];
     if (lastLabel === today) {
       ds.data[ds.data.length - 1] = newVal;
     } else {
@@ -1005,15 +964,14 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStats();
   updateTrackTable();
 
-  // Fetch current counts from server DB, then start the recurring scrobble poll
+  // Fetch current counts from server DB, then keep refreshing every 60 s
   fetchInitialCounts().then(() => {
     if (serverDemo) {
       setLiveStatus(false);
       document.getElementById('liveText').textContent = 'Demo mode — no API key';
       return;
     }
-    fetchRecentScrobbles();
-    pollTimer = setInterval(fetchRecentScrobbles, POLL_INTERVAL_MS);
+    pollTimer = setInterval(refreshCounts, POLL_INTERVAL_MS);
   });
 });
 </script>
