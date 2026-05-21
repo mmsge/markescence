@@ -283,6 +283,18 @@ async function pollCounts() {
 // ── Express ───────────────────────────────────────────────────────────────────
 
 const app = express();
+app.use(express.json());
+
+// Manual poll trigger — POST /api/poll
+// Runs pollCounts() immediately and waits for it to finish.
+app.post('/api/poll', async (req, res) => {
+  try {
+    await pollCounts();
+    res.json({ ok: true, ts: new Date().toISOString() });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
 
 // Latest counts from DB — fast read, always returns something
 app.get('/api/counts', (req, res) => {
