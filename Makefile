@@ -1,6 +1,6 @@
 IMAGE     = markescence
 CONTAINER = markescence
-PORT      = 4001
+PORT      = 4002
 DEPLOY_HOST = ap-mcp
 DEPLOY_DIR  = /var/www/markescence
 
