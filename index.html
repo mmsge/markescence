@@ -950,6 +950,11 @@ async function fetchInitialCounts() {
     updateStats();
     updateTrackTable();
     updateChartWithLive();
+
+    if (lastUpdated) {
+      document.getElementById('lastUpdated').textContent =
+        `Server last polled: ${new Date(lastUpdated).toLocaleTimeString()}`;
+    }
   } catch {
     // Network error — keep hardcoded baselines, page stays usable
     serverDemo = true;
