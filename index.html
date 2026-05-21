@@ -372,7 +372,7 @@
 
 <div class="stats-row" id="statsRow">
   <div class="stat"><div class="stat-n" id="statTotal">—</div><div class="stat-label">Total plays</div></div>
-  <div class="stat"><div class="stat-n" id="statTracks">5</div><div class="stat-label">Singles</div></div>
+  <div class="stat"><div class="stat-n" id="statTracks">—</div><div class="stat-label">Tracks</div></div>
   <div class="stat"><div class="stat-n" id="statDays">225</div><div class="stat-label">Days</div></div>
   <div class="stat"><div class="stat-n" id="statLeader">—</div><div class="stat-label">Leading track</div></div>
 </div>
@@ -415,18 +415,20 @@ const LASTFM_USER = 'mvrkws';
 const LASTFM_API_KEY = '__LASTFM_API_KEY__'; // replaced at deploy time
 const POLL_INTERVAL_MS = 60_000;
 
-// The five Florescence pre-release singles.
-// normalised keys used for matching scrobble artist+track strings.
+// All Florescence tracks.
+// releaseDate gates when a track appears on the chart/table/stats.
+// Pre-release singles have their original single release dates;
+// album-only tracks have the album release date (2026-05-22).
 const TRACKS = [
+  // ── Pre-release singles ───────────────────────────────────────────────────
   {
     id: 'my-regards',
     display: 'My Regards',
     artist: 'Maisie Peters',
     track: 'My Regards',
     released: '6 Feb 2026',
+    releaseDate: '2026-02-06',
     color: '#c4622d',
-    // baseline cumulative plays up to the start of live polling
-    // (from the full historical scrobble analysis)
     baseline: 546,
   },
   {
@@ -435,6 +437,7 @@ const TRACKS = [
     artist: 'Maisie Peters',
     track: 'Audrey Hepburn',
     released: '9 Oct 2025',
+    releaseDate: '2025-10-09',
     color: '#9b7e2a',
     baseline: 379,
   },
@@ -444,6 +447,7 @@ const TRACKS = [
     artist: 'Maisie Peters',
     track: 'You You You',
     released: '9 Oct 2025',
+    releaseDate: '2025-10-09',
     color: '#4a9e7a',
     baseline: 355,
   },
@@ -453,6 +457,7 @@ const TRACKS = [
     artist: 'Maisie Peters',
     track: 'Say My Name In Your Sleep',
     released: '19 Nov 2025',
+    releaseDate: '2025-11-19',
     color: '#3a7fa8',
     baseline: 219,
   },
@@ -463,15 +468,118 @@ const TRACKS = [
     track: 'Kingmaker (with Julia Michaels)',
     altArtist: 'Julia Michaels',
     released: 'Mar 2026',
+    releaseDate: '2026-03-01',
     color: '#8a6e9a',
-    dashed: true,
     baseline: 72,
+  },
+  // ── Album-only tracks — released 22 May 2026 ──────────────────────────────
+  {
+    id: 'mary-janes',
+    display: 'Mary Janes',
+    artist: 'Maisie Peters',
+    track: 'Mary Janes',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#d4564e',
+    baseline: 0,
+  },
+  {
+    id: 'old-fashioned',
+    display: 'Old Fashioned',
+    artist: 'Maisie Peters',
+    track: 'Old Fashioned',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#c49050',
+    baseline: 0,
+  },
+  {
+    id: 'houses',
+    display: 'Houses',
+    artist: 'Maisie Peters',
+    track: 'Houses',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#2d9e8a',
+    baseline: 0,
+  },
+  {
+    id: 'vampire-time',
+    display: 'Vampire Time',
+    artist: 'Maisie Peters',
+    track: 'Vampire Time',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#6e4eb0',
+    baseline: 0,
+  },
+  {
+    id: 'if-you-let-me',
+    display: 'If You Let Me (with Marcus Mumford)',
+    artist: 'Maisie Peters',
+    track: 'If You Let Me (with Marcus Mumford)',
+    altArtist: 'Marcus Mumford',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#4e88c4',
+    baseline: 0,
+  },
+  {
+    id: 'flat-earther',
+    display: 'Flat Earther',
+    artist: 'Maisie Peters',
+    track: 'Flat Earther',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#9e2d4e',
+    baseline: 0,
+  },
+  {
+    id: 'questions',
+    display: 'Questions',
+    artist: 'Maisie Peters',
+    track: 'Questions',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#7a9e4e',
+    baseline: 0,
+  },
+  {
+    id: 'girls-just-flying',
+    display: "Girl's Just Flying",
+    artist: 'Maisie Peters',
+    track: "Girl's Just Flying",
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#c46e9e',
+    baseline: 0,
+  },
+  {
+    id: 'you-then-me-now',
+    display: 'You Then Me Now',
+    artist: 'Maisie Peters',
+    track: 'You Then Me Now',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#8a9e5a',
+    baseline: 0,
+  },
+  {
+    id: 'nothing-like-being-in-love',
+    display: 'Nothing Like Being In Love',
+    artist: 'Maisie Peters',
+    track: 'Nothing Like Being In Love',
+    released: '22 May 2026',
+    releaseDate: '2026-05-22',
+    color: '#4e7a9e',
+    baseline: 0,
   },
 ];
 
 // Historical weekly cumulative data — seeded from the full scrobble analysis.
 // Each array entry = plays at end of that week (Sunday).
-// Dates: week starting 9 Oct 2025 through week of 22 May 2026 (33 entries).
+// Dates: week starting 9 Oct 2025 through album release 22 May 2026 (34 entries).
+const ZEROS_34 = Array(34).fill(0);
 const HISTORY = {
   weeks: [
     '2025-10-09','2025-10-16','2025-10-23','2025-10-30',
@@ -489,6 +597,17 @@ const HISTORY = {
     'you-you-you':   [7,16,25,33, 39,44,49,55, 61,66,71,77, 83,89,95,103,111, 119,128,137,148, 160,195,234,268, 292,312,330,343,352, 356,363,355,355],
     'say-my-name':   [0,0,0,0, 0,4,10,18, 26,34,42,50, 58,66,74,82,90, 98,108,118,130, 142,170,190,200, 206,212,215,216,218, 219,219,219,219],
     'kingmaker':     [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,0, 0,0,0,0, 0,4,10,18, 26,32,36,44,58, 62,68,72,72],
+    // Album-only tracks — all zeros until release day
+    'mary-janes':                 [...ZEROS_34],
+    'old-fashioned':              [...ZEROS_34],
+    'houses':                     [...ZEROS_34],
+    'vampire-time':               [...ZEROS_34],
+    'if-you-let-me':              [...ZEROS_34],
+    'flat-earther':               [...ZEROS_34],
+    'questions':                  [...ZEROS_34],
+    'girls-just-flying':          [...ZEROS_34],
+    'you-then-me-now':            [...ZEROS_34],
+    'nothing-like-being-in-love': [...ZEROS_34],
   }
 };
 
@@ -503,9 +622,17 @@ let apiAvailable = true;
 let lastScrobbleTs = Math.floor(Date.now() / 1000);
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
+// Returns only tracks whose releaseDate is today or earlier.
+function activeTracks() {
+  const today = new Date().toISOString().slice(0, 10);
+  return TRACKS.filter(td => !td.releaseDate || td.releaseDate <= today);
+}
+
 function matchTrack(artist, track) {
   const a = artist.toLowerCase();
   const t = track.toLowerCase();
+  // Match against ALL tracks (not just active) so scrobbles on release day
+  // are captured even before the next poll cycle refreshes active list.
   for (const td of TRACKS) {
     if (
       t === td.track.toLowerCase() &&
@@ -518,7 +645,7 @@ function matchTrack(artist, track) {
 function fmt(n) { return n.toLocaleString('en'); }
 
 function shortName(display) {
-  return display.length > 22 ? display.slice(0, 20) + '…' : display;
+  return display.length > 26 ? display.slice(0, 24) + '…' : display;
 }
 
 // ── CHART SETUP ───────────────────────────────────────────────────────────────
@@ -529,9 +656,13 @@ function buildChart() {
 
   const labels = HISTORY.weeks;
 
-  const datasets = TRACKS.map(td => ({
+  const datasets = activeTracks().map(td => ({
     label: td.display,
-    data: [...HISTORY.data[td.id]],
+    // Use null for all data points before a track's release date
+    // so the line only starts drawing from release day onward.
+    data: HISTORY.data[td.id].map((val, idx) =>
+      HISTORY.weeks[idx] < td.releaseDate ? null : val
+    ),
     borderColor: td.color,
     backgroundColor: 'transparent',
     borderWidth: td.id === 'my-regards' ? 2.5 : 2,
@@ -540,6 +671,7 @@ function buildChart() {
     pointHoverRadius: 5,
     pointHoverBackgroundColor: td.color,
     tension: 0.4,
+    spanGaps: false,
     _trackId: td.id,
   }));
 
@@ -596,6 +728,7 @@ function buildChart() {
       plugins: {
         legend: { display: false },
         tooltip: {
+          filter: item => item.parsed.y !== null,
           callbacks: {
             title: items => {
               const d = new Date(labels[items[0].dataIndex]);
@@ -659,7 +792,8 @@ function buildChart() {
 // ── LEGEND ────────────────────────────────────────────────────────────────────
 function buildLegend() {
   const el = document.getElementById('legend');
-  TRACKS.forEach((td, i) => {
+  el.innerHTML = '';
+  activeTracks().forEach((td, i) => {
     const item = document.createElement('span');
     item.className = 'legend-item';
     item.dataset.idx = i;
@@ -681,11 +815,12 @@ function buildLegend() {
 // ── TRACK TABLE ───────────────────────────────────────────────────────────────
 function updateTrackTable() {
   const tbody = document.querySelector('#trackTable tbody');
-  const totals = TRACKS.map(td => ({
+  const active = activeTracks();
+  const totals = active.map(td => ({
     ...td,
     plays: td.baseline + liveDelta[td.id]
-  }));
-  const max = Math.max(...totals.map(t => t.plays));
+  })).sort((a, b) => b.plays - a.plays);
+  const max = Math.max(...totals.map(t => t.plays), 1);
   tbody.innerHTML = '';
   totals.forEach(td => {
     const pct = Math.round((td.plays / max) * 100);
@@ -711,13 +846,15 @@ function updateTrackTable() {
 
 // ── STATS ─────────────────────────────────────────────────────────────────────
 function updateStats() {
-  const totals = TRACKS.map(td => td.baseline + liveDelta[td.id]);
+  const active = activeTracks();
+  const totals = active.map(td => td.baseline + liveDelta[td.id]);
   const total = totals.reduce((a, b) => a + b, 0);
   const leaderIdx = totals.indexOf(Math.max(...totals));
 
   document.getElementById('statTotal').textContent = fmt(total);
+  document.getElementById('statTracks').textContent = active.length;
   document.getElementById('statLeader').textContent =
-    TRACKS[leaderIdx].display.split(' ').slice(0, 2).join(' ');
+    active[leaderIdx].display.split(' ').slice(0, 2).join(' ');
 }
 
 // ── LIVE DATA ─────────────────────────────────────────────────────────────────
@@ -757,6 +894,8 @@ async function fetchRecentScrobbles() {
 
     if (newPlays > 0) {
       lastScrobbleTs = maxTs;
+      // Re-evaluate active tracks (date may have crossed midnight)
+      refreshActiveView();
       updateChartWithLive();
       updateStats();
       updateTrackTable();
@@ -784,22 +923,35 @@ function setLiveStatus(ok) {
   }
 }
 
+// Called at each poll cycle so newly-released tracks appear without a page reload.
+let _lastActiveCount = 0;
+function refreshActiveView() {
+  const count = activeTracks().length;
+  if (count !== _lastActiveCount) {
+    _lastActiveCount = count;
+    // Rebuild the chart and legend with the new track set
+    if (chart) { chart.destroy(); chart = null; }
+    buildChart();
+    buildLegend();
+  }
+}
+
 // Append a new live data point to the chart (today's date, updated totals)
 function updateChartWithLive() {
   if (!chart) return;
   const today = new Date().toISOString().slice(0, 10);
-
-  // check if today already exists as last label
   const labels = chart.data.labels;
   const lastLabel = labels[labels.length - 1];
+  let pushedLabel = false;
 
-  TRACKS.forEach((td, i) => {
+  activeTracks().forEach((td, i) => {
     const ds = chart.data.datasets[i];
+    if (!ds) return;
     const newVal = td.baseline + liveDelta[td.id];
     if (lastLabel === today) {
       ds.data[ds.data.length - 1] = newVal;
     } else {
-      labels.push(today);
+      if (!pushedLabel) { labels.push(today); pushedLabel = true; }
       ds.data.push(newVal);
     }
   });
@@ -809,6 +961,7 @@ function updateChartWithLive() {
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
+  _lastActiveCount = activeTracks().length;
   buildChart();
   buildLegend();
   updateStats();
