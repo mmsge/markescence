@@ -4,7 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Markescence — Florescence listening history</title>
-<meta name="description" content="Real-time cumulative scrobble chart for Maisie Peters' Florescence pre-release singles, by mvrkws on Last.fm.">
+<meta name="description" content="Real-time cumulative scrobble chart tracking how many times mvrkws has played each Maisie Peters Florescence track on Last.fm.">
+
+<!-- Open Graph -->
+<meta property="og:type"        content="website">
+<meta property="og:url"         content="https://markescence.msge.no">
+<meta property="og:title"       content="Marks of Florescence">
+<meta property="og:description" content="Real-time cumulative scrobble chart tracking how many times mvrkws has played each Maisie Peters Florescence track on Last.fm.">
+<meta property="og:image"       content="https://markescence.msge.no/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt"   content="Bar chart of cumulative Last.fm play counts for Maisie Peters' Florescence tracks">
+
+<!-- Twitter / X card -->
+<meta name="twitter:card"        content="summary_large_image">
+<meta name="twitter:title"       content="Marks of Florescence">
+<meta name="twitter:description" content="Real-time cumulative scrobble chart tracking how many times mvrkws has played each Maisie Peters Florescence track on Last.fm.">
+<meta name="twitter:image"       content="https://markescence.msge.no/og-image.png">
+
+<!-- Fediverse creator -->
+<meta name="fediverse:creator" content="@markus@skvip.lol">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -307,11 +326,12 @@
   }
   footer a { color: var(--muted); }
 
-  .last-updated {
-    display: block;
-    margin-top: 0.4rem;
+  .last-scrobble {
     font-size: 0.55rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
     color: var(--muted);
+    margin-top: 0.4rem;
     opacity: 0.7;
   }
 
@@ -366,6 +386,7 @@
       <span id="liveText">Live — updating every 60 s</span>
     </span>
   </div>
+  <p class="last-scrobble" id="lastScrobble"></p>
 </header>
 
 <div class="botanical-rule"></div>
@@ -406,14 +427,12 @@
 <footer>
   Data from <a href="https://www.last.fm/user/mvrkws" target="_blank" rel="noopener">Last.fm / mvrkws</a>
   · Chart by <a href="https://github.com/mmsge/markescence" target="_blank" rel="noopener">mmsge/markescence</a>
-  <span class="last-updated" id="lastUpdated"></span>
+
 </footer>
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const LASTFM_USER = 'mvrkws';
-const LASTFM_API_KEY = '35af7252329c5b63c6654edfbd1b1d25'; // replaced at deploy time
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 60_000; // re-fetch /api/counts this often
 
 // All Florescence tracks.
 // releaseDate gates when a track appears on the chart/table/stats.
@@ -612,38 +631,17 @@ const HISTORY = {
 };
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
-// liveBaseline: true current play counts fetched from Last.fm on init.
-// Starts as the hardcoded baseline so the page renders instantly; overwritten
-// once fetchInitialCounts() resolves. liveDelta then adds new plays on top.
+// liveBaseline: play counts from the server DB, refreshed every 60 s.
+// Starts as hardcoded baseline so the page renders instantly.
 const liveBaseline = Object.fromEntries(TRACKS.map(t => [t.id, t.baseline]));
-// liveDelta: additional plays discovered since page load (above liveBaseline)
-const liveDelta = Object.fromEntries(TRACKS.map(t => [t.id, 0]));
 let chart = null;
 let pollTimer = null;
-let apiAvailable = true;
-
-// We track the last scrobble timestamp to avoid double-counting
-let lastScrobbleTs = Math.floor(Date.now() / 1000);
 
 // ── HELPERS ───────────────────────────────────────────────────────────────────
 // Returns only tracks whose releaseDate is today or earlier.
 function activeTracks() {
   const today = new Date().toISOString().slice(0, 10);
   return TRACKS.filter(td => !td.releaseDate || td.releaseDate <= today);
-}
-
-function matchTrack(artist, track) {
-  const a = artist.toLowerCase();
-  const t = track.toLowerCase();
-  // Match against ALL tracks (not just active) so scrobbles on release day
-  // are captured even before the next poll cycle refreshes active list.
-  for (const td of TRACKS) {
-    if (
-      t === td.track.toLowerCase() &&
-      (a === td.artist.toLowerCase() || (td.altArtist && a === td.altArtist.toLowerCase()))
-    ) return td.id;
-  }
-  return null;
 }
 
 function fmt(n) { return n.toLocaleString('en'); }
@@ -828,7 +826,7 @@ function updateTrackTable() {
   // 0-play tracks naturally fall to the bottom after sorting.
   const totals = TRACKS.map(td => ({
     ...td,
-    plays: liveBaseline[td.id] + liveDelta[td.id]
+    plays: liveBaseline[td.id]
   })).sort((a, b) => b.plays - a.plays);
   const max = Math.max(...totals.map(t => t.plays), 1);
   tbody.innerHTML = '';
@@ -857,7 +855,7 @@ function updateTrackTable() {
 // ── STATS ─────────────────────────────────────────────────────────────────────
 function updateStats() {
   const active = activeTracks();
-  const totals = active.map(td => liveBaseline[td.id] + liveDelta[td.id]);
+  const totals = active.map(td => liveBaseline[td.id]);
   const total = totals.reduce((a, b) => a + b, 0);
   const leaderIdx = totals.indexOf(Math.max(...totals));
 
@@ -867,58 +865,33 @@ function updateStats() {
     active[leaderIdx].display.split(' ').slice(0, 2).join(' ');
 }
 
-// ── LIVE DATA ─────────────────────────────────────────────────────────────────
-async function fetchRecentScrobbles() {
-  if (!apiAvailable || LASTFM_API_KEY.startsWith('__')) return;
-
-  const url = new URL('https://ws.audioscrobbler.com/2.0/');
-  url.searchParams.set('method', 'user.getrecenttracks');
-  url.searchParams.set('user', LASTFM_USER);
-  url.searchParams.set('api_key', LASTFM_API_KEY);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('limit', '200');
-  url.searchParams.set('from', lastScrobbleTs);
-
+// ── LIVE REFRESH ──────────────────────────────────────────────────────────────
+// Re-fetches /api/counts from the server DB (which the background poller keeps
+// current every 60 s). No direct Last.fm calls from the browser.
+async function refreshCounts() {
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch('/api/counts');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    const tracks = json.recenttracks?.track ?? [];
+    const { counts, lastScrobbleTs, demo } = await res.json();
+    if (demo) return;
 
-    let newPlays = 0;
-    let maxTs = lastScrobbleTs;
-
-    for (const t of tracks) {
-      // skip currently-playing entry (no date attr)
-      if (t['@attr']?.nowplaying) continue;
-      const ts = parseInt(t.date?.uts ?? 0, 10);
-      if (ts <= lastScrobbleTs) continue;
-      if (ts > maxTs) maxTs = ts;
-
-      const id = matchTrack(t.artist['#text'], t.name);
-      if (id) {
-        liveDelta[id]++;
-        newPlays++;
-      }
+    for (const td of TRACKS) {
+      const n = counts[td.id];
+      if (typeof n === 'number') liveBaseline[td.id] = Math.max(n, td.baseline);
     }
 
-    // Always re-evaluate active tracks — catches the date crossing midnight
-    // (e.g. May 22 album drop) even before the first new scrobble arrives.
     refreshActiveView();
+    updateChartWithLive();
+    updateStats();
+    updateTrackTable();
 
-    if (newPlays > 0) {
-      lastScrobbleTs = maxTs;
-      updateChartWithLive();
-      updateStats();
-      updateTrackTable();
+    if (lastScrobbleTs) {
+      document.getElementById('lastScrobble').textContent =
+        `Last scrobble: ${new Date(lastScrobbleTs * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
     }
-
-    document.getElementById('lastUpdated').textContent =
-      `Last checked: ${new Date().toLocaleTimeString()}`;
     setLiveStatus(true);
-
   } catch (err) {
-    console.warn('Last.fm fetch failed:', err);
+    console.warn('Count refresh failed:', err);
     setLiveStatus(false);
   }
 }
@@ -952,7 +925,7 @@ function refreshActiveView() {
   }
 }
 
-// Append a new live data point to the chart (today's date, updated totals)
+// Update or append today's data point on the chart with the latest server counts.
 function updateChartWithLive() {
   if (!chart) return;
   const today = new Date().toISOString().slice(0, 10);
@@ -963,7 +936,7 @@ function updateChartWithLive() {
   activeTracks().forEach((td, i) => {
     const ds = chart.data.datasets[i];
     if (!ds) return;
-    const newVal = liveBaseline[td.id] + liveDelta[td.id];
+    const newVal = liveBaseline[td.id];
     if (lastLabel === today) {
       ds.data[ds.data.length - 1] = newVal;
     } else {
@@ -976,43 +949,39 @@ function updateChartWithLive() {
 }
 
 // ── INITIAL COUNTS ────────────────────────────────────────────────────────────
-// Fetch true current play counts for every track via track.getInfo on page load.
-// This replaces the hardcoded baselines with accurate totals immediately, so
-// stats are correct even before any new scrobble lands during this session.
-// For tracks with an altArtist (e.g. Kingmaker scrobbled under Julia Michaels),
-// both artist variants are fetched and summed.
+// Fetch true current play counts from the server's local DB (which the
+// background poller keeps fresh every 5 minutes).  Falls back gracefully to
+// the hardcoded baselines if the server returns nothing or signals demo mode.
+let serverDemo = false;
+
 async function fetchInitialCounts() {
-  if (LASTFM_API_KEY.startsWith('__')) return;
+  try {
+    const res = await fetch('/api/counts');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { counts, demo } = await res.json();
 
-  async function getCount(artist, track) {
-    const url = new URL('https://ws.audioscrobbler.com/2.0/');
-    url.searchParams.set('method', 'track.getInfo');
-    url.searchParams.set('artist', artist);
-    url.searchParams.set('track', track);
-    url.searchParams.set('username', LASTFM_USER);
-    url.searchParams.set('api_key', LASTFM_API_KEY);
-    url.searchParams.set('format', 'json');
-    const res = await fetch(url.toString());
-    if (!res.ok) return 0;
-    const json = await res.json();
-    return parseInt(json.track?.userplaycount ?? '0', 10) || 0;
-  }
+    serverDemo = !!demo;
 
-  await Promise.all(TRACKS.map(async td => {
-    try {
-      let count = await getCount(td.artist, td.track);
-      if (td.altArtist) count += await getCount(td.altArtist, td.track);
-      // Sanity-check: Last.fm can't have fewer plays than what we already logged.
-      // Keep whichever is higher in case of a name-mismatch edge case.
-      liveBaseline[td.id] = Math.max(count, td.baseline);
-    } catch {
-      // Keep hardcoded baseline on network error — page stays usable
+    for (const td of TRACKS) {
+      const serverCount = counts[td.id];
+      if (typeof serverCount === 'number') {
+        // Sanity-check: keep whichever is higher
+        liveBaseline[td.id] = Math.max(serverCount, td.baseline);
+      }
     }
-  }));
 
-  updateStats();
-  updateTrackTable();
-  updateChartWithLive();
+    updateStats();
+    updateTrackTable();
+    updateChartWithLive();
+
+    if (lastScrobbleTs) {
+      document.getElementById('lastScrobble').textContent =
+        `Last scrobble: ${new Date(lastScrobbleTs * 1000).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`;
+    }
+  } catch {
+    // Network error — keep hardcoded baselines, page stays usable
+    serverDemo = true;
+  }
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -1023,17 +992,15 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStats();
   updateTrackTable();
 
-  // Fetch true current play counts, then start the recurring poll
+  // Fetch current counts from server DB, then keep refreshing every 60 s
   fetchInitialCounts().then(() => {
-    fetchRecentScrobbles();
-    pollTimer = setInterval(fetchRecentScrobbles, POLL_INTERVAL_MS);
+    if (serverDemo) {
+      setLiveStatus(false);
+      document.getElementById('liveText').textContent = 'Demo mode — no API key';
+      return;
+    }
+    pollTimer = setInterval(refreshCounts, POLL_INTERVAL_MS);
   });
-
-  // if no API key at all, mark as demo mode
-  if (LASTFM_API_KEY.startsWith('__')) {
-    setLiveStatus(false);
-    document.getElementById('liveText').textContent = 'Demo mode — no API key';
-  }
 });
 </script>
 </body>
