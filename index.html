@@ -656,24 +656,33 @@ function buildChart() {
 
   const labels = HISTORY.weeks;
 
-  const datasets = activeTracks().map(td => ({
-    label: td.display,
+  const datasets = activeTracks().map(td => {
     // Use null for all data points before a track's release date
     // so the line only starts drawing from release day onward.
-    data: HISTORY.data[td.id].map((val, idx) =>
+    const data = HISTORY.data[td.id].map((val, idx) =>
       HISTORY.weeks[idx] < td.releaseDate ? null : val
-    ),
-    borderColor: td.color,
-    backgroundColor: 'transparent',
-    borderWidth: td.id === 'my-regards' ? 2.5 : 2,
-    borderDash: td.dashed ? [5, 3] : [],
-    pointRadius: 0,
-    pointHoverRadius: 5,
-    pointHoverBackgroundColor: td.color,
-    tension: 0.4,
-    spanGaps: false,
-    _trackId: td.id,
-  }));
+    );
+
+    // Anchor the line at zero on the week before its first real point
+    // so it rises from the bottom instead of floating in mid-chart.
+    const firstIdx = data.findIndex(v => v !== null);
+    if (firstIdx > 0) data[firstIdx - 1] = 0;
+
+    return {
+      label: td.display,
+      data,
+      borderColor: td.color,
+      backgroundColor: 'transparent',
+      borderWidth: td.id === 'my-regards' ? 2.5 : 2,
+      borderDash: td.dashed ? [5, 3] : [],
+      pointRadius: 0,
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: td.color,
+      tension: 0.4,
+      spanGaps: false,
+      _trackId: td.id,
+    };
+  });
 
   const ctx = document.getElementById('mainChart').getContext('2d');
 
