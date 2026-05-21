@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markescence — Florescence listening history</title>
+<meta name="description" content="Real-time cumulative scrobble chart for Maisie Peters' Florescence pre-release singles, by mvrkws on Last.fm.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --cream: #f5f0e8;
+    --ink: #1a1208;
+    --rust: #c4622d;
+    --gold: #9b7e2a;
+    --sage: #4a9e7a;
+    --slate: #3a7fa8;
+    --mauve: #8a6e9a;
+    --muted: #8a7e6e;
+    --line: rgba(26,18,8,0.12);
+    --surface: rgba(255,255,255,0.5);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--cream);
+    color: var(--ink);
+    font-family: 'DM Mono', monospace;
+    font-weight: 300;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* grain overlay */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.035'/%3E%3C/svg%3E");
+    opacity: 0.5;
+  }
+
+  /* decorative botanical lines */
+  .botanical-rule {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--muted) 20%, var(--muted) 80%, transparent);
+    opacity: 0.3;
+    margin: 0;
+  }
+
+  /* ── HEADER ── */
+  header {
+    padding: 3.5rem 2rem 2.5rem;
+    text-align: center;
+    position: relative;
+  }
+
+  .eyebrow {
+    font-size: 0.6rem;
+    letter-spacing: 0.28em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+  }
+
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+  }
+
+  h1 em {
+    font-style: italic;
+    color: var(--rust);
+  }
+
+  .header-sub {
+    font-size: 0.65rem;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-top: 0.75rem;
+  }
+
+  /* live indicator */
+  .live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.6rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sage);
+    margin-top: 1rem;
+    padding: 4px 10px;
+    border: 1px solid rgba(74,158,122,0.35);
+    border-radius: 20px;
+  }
+
+  .live-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--sage);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  .live-badge.stale .live-dot { background: var(--muted); animation: none; }
+  .live-badge.stale { color: var(--muted); border-color: rgba(138,126,110,0.3); }
+
+  /* ── STATS ROW ── */
+  .stats-row {
+    display: flex;
+    justify-content: center;
+    gap: 0;
+    padding: 0 2rem;
+    max-width: 900px;
+    margin: 0 auto 2rem;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .stat {
+    flex: 1;
+    padding: 1.1rem 1rem;
+    text-align: center;
+    border-right: 1px solid var(--line);
+  }
+  .stat:last-child { border-right: none; }
+
+  .stat-n {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--rust);
+    line-height: 1;
+    margin-bottom: 0.3rem;
+  }
+
+  .stat-label {
+    font-size: 0.55rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ── CHART ── */
+  .chart-wrap {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 2rem 1rem;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px 20px;
+    margin-bottom: 1.2rem;
+    font-size: 0.62rem;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+  }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .legend-item:hover { opacity: 0.75; }
+  .legend-item.hidden { opacity: 0.35; }
+
+  .legend-swatch {
+    width: 22px;
+    height: 3px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .chart-canvas-wrap {
+    position: relative;
+    width: 100%;
+    height: 420px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1.5rem 0.5rem 0.5rem;
+  }
+
+  /* ── TRACK TABLE ── */
+  .section {
+    max-width: 900px;
+    margin: 2.5rem auto 0;
+    padding: 0 2rem;
+  }
+
+  .section-label {
+    font-size: 0.58rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+  }
+
+  .track-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .track-table tr {
+    border-bottom: 1px solid var(--line);
+    transition: background 0.15s;
+  }
+  .track-table tr:hover { background: rgba(196,98,45,0.04); }
+
+  .track-table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.68rem;
+    letter-spacing: 0.04em;
+  }
+
+  .track-swatch {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 8px;
+    flex-shrink: 0;
+  }
+
+  .track-name-cell {
+    display: flex;
+    align-items: center;
+  }
+
+  .track-name {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    font-weight: 400;
+  }
+
+  .track-plays {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--rust);
+    text-align: right;
+  }
+
+  .track-bar-cell { width: 40%; }
+
+  .track-bar-bg {
+    height: 4px;
+    background: var(--line);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .track-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  .track-release {
+    color: var(--muted);
+    font-size: 0.58rem;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+  }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 3rem 2rem 2rem;
+    font-size: 0.58rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-top: 2rem;
+  }
+  footer a { color: var(--muted); }
+
+  .last-updated {
+    display: block;
+    margin-top: 0.4rem;
+    font-size: 0.55rem;
+    color: var(--muted);
+    opacity: 0.7;
+  }
+
+  /* ── ALBUM RELEASE BANNER ── */
+  .album-banner {
+    max-width: 900px;
+    margin: 1.5rem auto 0;
+    padding: 0 2rem;
+  }
+
+  .album-banner-inner {
+    border: 1px solid rgba(196,98,45,0.3);
+    border-radius: 4px;
+    padding: 0.9rem 1.2rem;
+    background: rgba(196,98,45,0.05);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--rust);
+  }
+
+  .album-banner-inner strong {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    header { padding: 2.5rem 1.2rem 1.5rem; }
+    .chart-wrap, .section, .album-banner { padding: 0 1.2rem; }
+    .stats-row { padding: 0 1.2rem; flex-wrap: wrap; }
+    .stat { min-width: 50%; }
+    .chart-canvas-wrap { height: 280px; }
+    .track-bar-cell { display: none; }
+    .track-release { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">mvrkws · Last.fm · Pre-release listening</p>
+  <h1>Marks of <em>Florescence</em></h1>
+  <p class="header-sub">Cumulative scrobbles · Maisie Peters</p>
+  <div>
+    <span class="live-badge" id="liveBadge">
+      <span class="live-dot"></span>
+      <span id="liveText">Live — updating every 60 s</span>
+    </span>
+  </div>
+</header>
+
+<div class="botanical-rule"></div>
+
+<div class="stats-row" id="statsRow">
+  <div class="stat"><div class="stat-n" id="statTotal">—</div><div class="stat-label">Total plays</div></div>
+  <div class="stat"><div class="stat-n" id="statTracks">5</div><div class="stat-label">Singles</div></div>
+  <div class="stat"><div class="stat-n" id="statDays">225</div><div class="stat-label">Days</div></div>
+  <div class="stat"><div class="stat-n" id="statLeader">—</div><div class="stat-label">Leading track</div></div>
+</div>
+
+<div class="chart-wrap">
+  <div class="legend" id="legend"></div>
+  <div class="chart-canvas-wrap">
+    <canvas id="mainChart" role="img"
+      aria-label="Line chart showing cumulative plays of five Florescence pre-release singles from October 2025 to today. My Regards leads.">
+      Loading chart data…
+    </canvas>
+  </div>
+</div>
+
+<div class="album-banner">
+  <div class="album-banner-inner">
+    <span>★</span>
+    <span><strong>Florescence</strong> — out now. These lines meet the album.</span>
+  </div>
+</div>
+
+<div class="section">
+  <p class="section-label">By track</p>
+  <table class="track-table" id="trackTable">
+    <tbody></tbody>
+  </table>
+</div>
+
+<div class="botanical-rule" style="margin-top:2.5rem;"></div>
+
+<footer>
+  Data from <a href="https://www.last.fm/user/mvrkws" target="_blank" rel="noopener">Last.fm / mvrkws</a>
+  · Chart by <a href="https://github.com/mmsge/markescence" target="_blank" rel="noopener">mmsge/markescence</a>
+  <span class="last-updated" id="lastUpdated"></span>
+</footer>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const LASTFM_USER = 'mvrkws';
+const LASTFM_API_KEY = '__LASTFM_API_KEY__'; // replaced at deploy time
+const POLL_INTERVAL_MS = 60_000;
+
+// The five Florescence pre-release singles.
+// normalised keys used for matching scrobble artist+track strings.
+const TRACKS = [
+  {
+    id: 'my-regards',
+    display: 'My Regards',
+    artist: 'Maisie Peters',
+    track: 'My Regards',
+    released: '6 Feb 2026',
+    color: '#c4622d',
+    // baseline cumulative plays up to the start of live polling
+    // (from the full historical scrobble analysis)
+    baseline: 546,
+  },
+  {
+    id: 'audrey-hepburn',
+    display: 'Audrey Hepburn',
+    artist: 'Maisie Peters',
+    track: 'Audrey Hepburn',
+    released: '9 Oct 2025',
+    color: '#9b7e2a',
+    baseline: 379,
+  },
+  {
+    id: 'you-you-you',
+    display: 'You You You',
+    artist: 'Maisie Peters',
+    track: 'You You You',
+    released: '9 Oct 2025',
+    color: '#4a9e7a',
+    baseline: 355,
+  },
+  {
+    id: 'say-my-name',
+    display: 'Say My Name In Your Sleep',
+    artist: 'Maisie Peters',
+    track: 'Say My Name In Your Sleep',
+    released: '19 Nov 2025',
+    color: '#3a7fa8',
+    baseline: 219,
+  },
+  {
+    id: 'kingmaker',
+    display: 'Kingmaker (with Julia Michaels)',
+    artist: 'Maisie Peters',
+    track: 'Kingmaker (with Julia Michaels)',
+    altArtist: 'Julia Michaels',
+    released: 'Mar 2026',
+    color: '#8a6e9a',
+    dashed: true,
+    baseline: 72,
+  },
+];
+
+// Historical weekly cumulative data — seeded from the full scrobble analysis.
+// Each array entry = plays at end of that week (Sunday).
+// Dates: week starting 9 Oct 2025 through week of 22 May 2026 (33 entries).
+const HISTORY = {
+  weeks: [
+    '2025-10-09','2025-10-16','2025-10-23','2025-10-30',
+    '2025-11-06','2025-11-13','2025-11-20','2025-11-27',
+    '2025-12-04','2025-12-11','2025-12-18','2025-12-25',
+    '2026-01-01','2026-01-08','2026-01-15','2026-01-22','2026-01-29',
+    '2026-02-05','2026-02-12','2026-02-19','2026-02-26',
+    '2026-03-05','2026-03-12','2026-03-19','2026-03-26',
+    '2026-04-02','2026-04-09','2026-04-16','2026-04-23','2026-04-30',
+    '2026-05-07','2026-05-14','2026-05-21','2026-05-22',
+  ],
+  data: {
+    'my-regards':    [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,0, 12,28,52,84, 140,220,310,390, 420,450,480,510,530, 536,542,546,546],
+    'audrey-hepburn':[8,18,28,36, 42,48,54,60, 66,71,76,82, 88,94,100,108,116, 124,133,142,153, 165,200,240,275, 300,320,338,352,362, 368,374,379,379],
+    'you-you-you':   [7,16,25,33, 39,44,49,55, 61,66,71,77, 83,89,95,103,111, 119,128,137,148, 160,195,234,268, 292,312,330,343,352, 356,363,355,355],
+    'say-my-name':   [0,0,0,0, 0,4,10,18, 26,34,42,50, 58,66,74,82,90, 98,108,118,130, 142,170,190,200, 206,212,215,216,218, 219,219,219,219],
+    'kingmaker':     [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0,0, 0,0,0,0, 0,4,10,18, 26,32,36,44,58, 62,68,72,72],
+  }
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+// liveDelta: additional plays discovered since page load (above baseline)
+const liveDelta = Object.fromEntries(TRACKS.map(t => [t.id, 0]));
+let chart = null;
+let pollTimer = null;
+let apiAvailable = true;
+
+// We track the last scrobble timestamp to avoid double-counting
+let lastScrobbleTs = Math.floor(Date.now() / 1000);
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function matchTrack(artist, track) {
+  const a = artist.toLowerCase();
+  const t = track.toLowerCase();
+  for (const td of TRACKS) {
+    if (
+      t === td.track.toLowerCase() &&
+      (a === td.artist.toLowerCase() || (td.altArtist && a === td.altArtist.toLowerCase()))
+    ) return td.id;
+  }
+  return null;
+}
+
+function fmt(n) { return n.toLocaleString('en'); }
+
+function shortName(display) {
+  return display.length > 22 ? display.slice(0, 20) + '…' : display;
+}
+
+// ── CHART SETUP ───────────────────────────────────────────────────────────────
+function buildChart() {
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridColor = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(26,18,8,0.07)';
+  const labelColor = isDark ? '#998' : '#8a7e6e';
+
+  const labels = HISTORY.weeks;
+
+  const datasets = TRACKS.map(td => ({
+    label: td.display,
+    data: [...HISTORY.data[td.id]],
+    borderColor: td.color,
+    backgroundColor: 'transparent',
+    borderWidth: td.id === 'my-regards' ? 2.5 : 2,
+    borderDash: td.dashed ? [5, 3] : [],
+    pointRadius: 0,
+    pointHoverRadius: 5,
+    pointHoverBackgroundColor: td.color,
+    tension: 0.4,
+    _trackId: td.id,
+  }));
+
+  const ctx = document.getElementById('mainChart').getContext('2d');
+
+  // custom plugin for release date vertical lines
+  const releasePlugin = {
+    id: 'releaseLines',
+    afterDraw(chart) {
+      const { ctx: c, chartArea, scales } = chart;
+      const releases = [
+        { weekIdx: 0,  label: 'Audrey Hepburn\n& You You You', color: '#9b7e2a' },
+        { weekIdx: 6,  label: 'Say My Name\nIn Your Sleep',    color: '#3a7fa8' },
+        { weekIdx: 17, label: 'My Regards',                    color: '#c4622d' },
+        { weekIdx: 33, label: '★ Florescence',                 color: '#c4622d' },
+      ];
+      releases.forEach(r => {
+        const x = scales.x.getPixelForValue(r.weekIdx);
+        c.save();
+        c.strokeStyle = r.weekIdx === 33
+          ? 'rgba(196,98,45,0.55)'
+          : (isDark ? 'rgba(255,255,255,0.18)' : 'rgba(26,18,8,0.13)');
+        c.lineWidth = r.weekIdx === 33 ? 2 : 1;
+        c.setLineDash(r.weekIdx === 33 ? [5, 3] : [3, 3]);
+        c.beginPath();
+        c.moveTo(x, chartArea.top);
+        c.lineTo(x, chartArea.bottom);
+        c.stroke();
+        c.restore();
+
+        const lines = r.label.split('\n');
+        c.save();
+        c.fillStyle = r.weekIdx === 33 ? '#c4622d' : labelColor;
+        c.font = `${r.weekIdx === 33 ? '500 ' : ''}10px "DM Mono", monospace`;
+        c.textAlign = 'center';
+        lines.forEach((line, li) => {
+          c.fillText(line, x, chartArea.top + 12 + li * 13);
+        });
+        c.restore();
+      });
+    }
+  };
+
+  Chart.register(releasePlugin);
+
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: { duration: 600, easing: 'easeInOutQuart' },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: items => {
+              const d = new Date(labels[items[0].dataIndex]);
+              return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+            },
+            label: item => ` ${item.dataset.label}: ${fmt(Math.round(item.parsed.y))} plays`,
+          },
+          backgroundColor: isDark ? '#2a2a20' : '#faf6ee',
+          borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(26,18,8,0.15)',
+          borderWidth: 1,
+          titleColor: isDark ? '#eed' : '#1a1208',
+          bodyColor: isDark ? '#bba' : '#5a4e3e',
+          padding: 12,
+          titleFont: { family: "'Playfair Display', serif", size: 13 },
+          bodyFont: { family: "'DM Mono', monospace", size: 11 },
+        }
+      },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: {
+            color: labelColor,
+            font: { family: "'DM Mono', monospace", size: 10 },
+            maxTicksLimit: 9,
+            autoSkip: true,
+            maxRotation: 0,
+            callback(val, idx) {
+              // show month boundaries only
+              const date = labels[idx];
+              if (!date) return '';
+              const d = new Date(date);
+              const isMonthStart = d.getDate() <= 7;
+              return isMonthStart
+                ? d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
+                : '';
+            }
+          },
+          grid: { color: gridColor, drawBorder: false }
+        },
+        y: {
+          min: 0,
+          suggestedMax: 600,
+          ticks: {
+            color: labelColor,
+            font: { family: "'DM Mono', monospace", size: 10 },
+            stepSize: 100,
+          },
+          grid: { color: gridColor, drawBorder: false },
+          title: {
+            display: true,
+            text: 'cumulative plays',
+            color: labelColor,
+            font: { family: "'DM Mono', monospace", size: 10 },
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── LEGEND ────────────────────────────────────────────────────────────────────
+function buildLegend() {
+  const el = document.getElementById('legend');
+  TRACKS.forEach((td, i) => {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    item.dataset.idx = i;
+    item.innerHTML = `
+      <span class="legend-swatch" style="background:${td.color}${td.dashed ? ';background:repeating-linear-gradient(90deg,${td.color} 0,${td.color} 5px,transparent 5px,transparent 8px)' : ''}"></span>
+      ${shortName(td.display)}
+    `;
+    item.addEventListener('click', () => {
+      const ds = chart.data.datasets[i];
+      const hidden = !ds.hidden;
+      ds.hidden = hidden;
+      item.classList.toggle('hidden', hidden);
+      chart.update();
+    });
+    el.appendChild(item);
+  });
+}
+
+// ── TRACK TABLE ───────────────────────────────────────────────────────────────
+function updateTrackTable() {
+  const tbody = document.querySelector('#trackTable tbody');
+  const totals = TRACKS.map(td => ({
+    ...td,
+    plays: td.baseline + liveDelta[td.id]
+  }));
+  const max = Math.max(...totals.map(t => t.plays));
+  tbody.innerHTML = '';
+  totals.forEach(td => {
+    const pct = Math.round((td.plays / max) * 100);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="track-name-cell">
+          <span class="track-swatch" style="background:${td.color}"></span>
+          <span class="track-name">${td.display}</span>
+        </div>
+      </td>
+      <td class="track-bar-cell">
+        <div class="track-bar-bg">
+          <div class="track-bar-fill" style="width:${pct}%;background:${td.color}"></div>
+        </div>
+      </td>
+      <td class="track-release">${td.released}</td>
+      <td class="track-plays">${fmt(td.plays)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── STATS ─────────────────────────────────────────────────────────────────────
+function updateStats() {
+  const totals = TRACKS.map(td => td.baseline + liveDelta[td.id]);
+  const total = totals.reduce((a, b) => a + b, 0);
+  const leaderIdx = totals.indexOf(Math.max(...totals));
+
+  document.getElementById('statTotal').textContent = fmt(total);
+  document.getElementById('statLeader').textContent =
+    TRACKS[leaderIdx].display.split(' ').slice(0, 2).join(' ');
+}
+
+// ── LIVE DATA ─────────────────────────────────────────────────────────────────
+async function fetchRecentScrobbles() {
+  if (!apiAvailable || LASTFM_API_KEY === '__LASTFM_API_KEY__') return;
+
+  const url = new URL('https://ws.audioscrobbler.com/2.0/');
+  url.searchParams.set('method', 'user.getrecenttracks');
+  url.searchParams.set('user', LASTFM_USER);
+  url.searchParams.set('api_key', LASTFM_API_KEY);
+  url.searchParams.set('format', 'json');
+  url.searchParams.set('limit', '200');
+  url.searchParams.set('from', lastScrobbleTs);
+
+  try {
+    const res = await fetch(url.toString());
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    const tracks = json.recenttracks?.track ?? [];
+
+    let newPlays = 0;
+    let maxTs = lastScrobbleTs;
+
+    for (const t of tracks) {
+      // skip currently-playing entry (no date attr)
+      if (t['@attr']?.nowplaying) continue;
+      const ts = parseInt(t.date?.uts ?? 0, 10);
+      if (ts <= lastScrobbleTs) continue;
+      if (ts > maxTs) maxTs = ts;
+
+      const id = matchTrack(t.artist['#text'], t.name);
+      if (id) {
+        liveDelta[id]++;
+        newPlays++;
+      }
+    }
+
+    if (newPlays > 0) {
+      lastScrobbleTs = maxTs;
+      updateChartWithLive();
+      updateStats();
+      updateTrackTable();
+    }
+
+    document.getElementById('lastUpdated').textContent =
+      `Last checked: ${new Date().toLocaleTimeString()}`;
+    setLiveStatus(true);
+
+  } catch (err) {
+    console.warn('Last.fm fetch failed:', err);
+    setLiveStatus(false);
+  }
+}
+
+function setLiveStatus(ok) {
+  const badge = document.getElementById('liveBadge');
+  const text = document.getElementById('liveText');
+  if (ok) {
+    badge.classList.remove('stale');
+    text.textContent = 'Live — updating every 60 s';
+  } else {
+    badge.classList.add('stale');
+    text.textContent = 'Offline — showing cached data';
+  }
+}
+
+// Append a new live data point to the chart (today's date, updated totals)
+function updateChartWithLive() {
+  if (!chart) return;
+  const today = new Date().toISOString().slice(0, 10);
+
+  // check if today already exists as last label
+  const labels = chart.data.labels;
+  const lastLabel = labels[labels.length - 1];
+
+  TRACKS.forEach((td, i) => {
+    const ds = chart.data.datasets[i];
+    const newVal = td.baseline + liveDelta[td.id];
+    if (lastLabel === today) {
+      ds.data[ds.data.length - 1] = newVal;
+    } else {
+      labels.push(today);
+      ds.data.push(newVal);
+    }
+  });
+
+  chart.update();
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  buildChart();
+  buildLegend();
+  updateStats();
+  updateTrackTable();
+
+  // start polling
+  fetchRecentScrobbles();
+  pollTimer = setInterval(fetchRecentScrobbles, POLL_INTERVAL_MS);
+
+  // if no API key at all, mark as demo mode
+  if (LASTFM_API_KEY === '__LASTFM_API_KEY__') {
+    setLiveStatus(false);
+    document.getElementById('liveText').textContent = 'Demo mode — no API key';
+  }
+});
+</script>
+</body>
+</html>
