@@ -411,8 +411,6 @@
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const LASTFM_USER = 'mvrkws';
-const LASTFM_API_KEY = '__LASTFM_API_KEY__'; // replaced at deploy time
 const POLL_INTERVAL_MS = 60_000;
 
 // All Florescence tracks.
@@ -869,20 +867,13 @@ function updateStats() {
 
 // ── LIVE DATA ─────────────────────────────────────────────────────────────────
 async function fetchRecentScrobbles() {
-  if (!apiAvailable || LASTFM_API_KEY.startsWith('__')) return;
-
-  const url = new URL('https://ws.audioscrobbler.com/2.0/');
-  url.searchParams.set('method', 'user.getrecenttracks');
-  url.searchParams.set('user', LASTFM_USER);
-  url.searchParams.set('api_key', LASTFM_API_KEY);
-  url.searchParams.set('format', 'json');
-  url.searchParams.set('limit', '200');
-  url.searchParams.set('from', lastScrobbleTs);
+  if (!apiAvailable) return;
 
   try {
-    const res = await fetch(url.toString());
+    const res = await fetch(`/api/recent?from=${lastScrobbleTs}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const json = await res.json();
+    if (json.demo) return; // server has no API key
     const tracks = json.recenttracks?.track ?? [];
 
     let newPlays = 0;
@@ -976,43 +967,34 @@ function updateChartWithLive() {
 }
 
 // ── INITIAL COUNTS ────────────────────────────────────────────────────────────
-// Fetch true current play counts for every track via track.getInfo on page load.
-// This replaces the hardcoded baselines with accurate totals immediately, so
-// stats are correct even before any new scrobble lands during this session.
-// For tracks with an altArtist (e.g. Kingmaker scrobbled under Julia Michaels),
-// both artist variants are fetched and summed.
+// Fetch true current play counts from the server's local DB (which the
+// background poller keeps fresh every 5 minutes).  Falls back gracefully to
+// the hardcoded baselines if the server returns nothing or signals demo mode.
+let serverDemo = false;
+
 async function fetchInitialCounts() {
-  if (LASTFM_API_KEY.startsWith('__')) return;
+  try {
+    const res = await fetch('/api/counts');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const { counts, demo } = await res.json();
 
-  async function getCount(artist, track) {
-    const url = new URL('https://ws.audioscrobbler.com/2.0/');
-    url.searchParams.set('method', 'track.getInfo');
-    url.searchParams.set('artist', artist);
-    url.searchParams.set('track', track);
-    url.searchParams.set('username', LASTFM_USER);
-    url.searchParams.set('api_key', LASTFM_API_KEY);
-    url.searchParams.set('format', 'json');
-    const res = await fetch(url.toString());
-    if (!res.ok) return 0;
-    const json = await res.json();
-    return parseInt(json.track?.userplaycount ?? '0', 10) || 0;
-  }
+    serverDemo = !!demo;
 
-  await Promise.all(TRACKS.map(async td => {
-    try {
-      let count = await getCount(td.artist, td.track);
-      if (td.altArtist) count += await getCount(td.altArtist, td.track);
-      // Sanity-check: Last.fm can't have fewer plays than what we already logged.
-      // Keep whichever is higher in case of a name-mismatch edge case.
-      liveBaseline[td.id] = Math.max(count, td.baseline);
-    } catch {
-      // Keep hardcoded baseline on network error — page stays usable
+    for (const td of TRACKS) {
+      const serverCount = counts[td.id];
+      if (typeof serverCount === 'number') {
+        // Sanity-check: keep whichever is higher
+        liveBaseline[td.id] = Math.max(serverCount, td.baseline);
+      }
     }
-  }));
 
-  updateStats();
-  updateTrackTable();
-  updateChartWithLive();
+    updateStats();
+    updateTrackTable();
+    updateChartWithLive();
+  } catch {
+    // Network error — keep hardcoded baselines, page stays usable
+    serverDemo = true;
+  }
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
@@ -1023,17 +1005,16 @@ document.addEventListener('DOMContentLoaded', () => {
   updateStats();
   updateTrackTable();
 
-  // Fetch true current play counts, then start the recurring poll
+  // Fetch current counts from server DB, then start the recurring scrobble poll
   fetchInitialCounts().then(() => {
+    if (serverDemo) {
+      setLiveStatus(false);
+      document.getElementById('liveText').textContent = 'Demo mode — no API key';
+      return;
+    }
     fetchRecentScrobbles();
     pollTimer = setInterval(fetchRecentScrobbles, POLL_INTERVAL_MS);
   });
-
-  // if no API key at all, mark as demo mode
-  if (LASTFM_API_KEY.startsWith('__')) {
-    setLiveStatus(false);
-    document.getElementById('liveText').textContent = 'Demo mode — no API key';
-  }
 });
 </script>
 </body>
