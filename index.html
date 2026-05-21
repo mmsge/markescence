@@ -761,18 +761,14 @@ function buildChart() {
           ticks: {
             color: labelColor,
             font: { family: "'DM Mono', monospace", size: 10 },
-            maxTicksLimit: 9,
+            maxTicksLimit: 14,
             autoSkip: true,
             maxRotation: 0,
             callback(val, idx) {
-              // show month boundaries only
               const date = labels[idx];
               if (!date) return '';
-              const d = new Date(date);
-              const isMonthStart = d.getDate() <= 7;
-              return isMonthStart
-                ? d.toLocaleDateString('en-GB', { month: 'short', year: '2-digit' })
-                : '';
+              const d = new Date(date + 'T12:00:00'); // noon avoids DST edge
+              return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
             }
           },
           grid: { color: gridColor, drawBorder: false }
@@ -902,10 +898,12 @@ async function fetchRecentScrobbles() {
       }
     }
 
+    // Always re-evaluate active tracks — catches the date crossing midnight
+    // (e.g. May 22 album drop) even before the first new scrobble arrives.
+    refreshActiveView();
+
     if (newPlays > 0) {
       lastScrobbleTs = maxTs;
-      // Re-evaluate active tracks (date may have crossed midnight)
-      refreshActiveView();
       updateChartWithLive();
       updateStats();
       updateTrackTable();
@@ -943,6 +941,10 @@ function refreshActiveView() {
     if (chart) { chart.destroy(); chart = null; }
     buildChart();
     buildLegend();
+    // Also refresh stats and table so track count / leading track update
+    // the moment the new set unlocks (even before a scrobble arrives).
+    updateStats();
+    updateTrackTable();
   }
 }
 
