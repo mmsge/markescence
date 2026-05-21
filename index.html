@@ -815,8 +815,9 @@ function buildLegend() {
 // ── TRACK TABLE ───────────────────────────────────────────────────────────────
 function updateTrackTable() {
   const tbody = document.querySelector('#trackTable tbody');
-  const active = activeTracks();
-  const totals = active.map(td => ({
+  // Show all tracks (including unreleased) so the full tracklist is visible;
+  // 0-play tracks naturally fall to the bottom after sorting.
+  const totals = TRACKS.map(td => ({
     ...td,
     plays: td.baseline + liveDelta[td.id]
   })).sort((a, b) => b.plays - a.plays);
