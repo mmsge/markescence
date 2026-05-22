@@ -215,12 +215,16 @@ async function fetchTrackCount(artist, track) {
   return parseInt(json.track?.userplaycount ?? '0', 10) || 0;
 }
 
-async function fetchLastScrobbleTs() {
-  const json = await lfmGet({ method: 'user.getrecenttracks', user: LASTFM_USER, limit: '1' });
+async function fetchLastScrobble() {
+  const json = await lfmGet({ method: 'user.getrecenttracks', user: LASTFM_USER, limit: '2' });
   const tracks = json.recenttracks?.track ?? [];
   for (const t of [tracks].flat()) {
     if (!t['@attr']?.nowplaying && t.date?.uts) {
-      return parseInt(t.date.uts, 10);
+      return {
+        ts: parseInt(t.date.uts, 10),
+        trackName: t.name ?? null,
+        artistName: t.artist?.['#text'] ?? null,
+      };
     }
   }
   return null;
@@ -272,15 +276,19 @@ async function pollCounts() {
     }
   }
 
-  // Fetch and store the most recent scrobble timestamp
+  // Fetch and store the most recent scrobble timestamp + track info
   try {
-    const ts = await fetchLastScrobbleTs();
-    if (ts) {
-      db.prepare(`
-        INSERT INTO app_state (key, value) VALUES ('last_scrobble_ts', ?)
-        ON CONFLICT(key) DO UPDATE SET value = excluded.value
-      `).run(String(ts));
-      console.log(`  last scrobble: ${new Date(ts * 1000).toISOString()}`);
+    const scrobble = await fetchLastScrobble();
+    if (scrobble) {
+      const { ts, trackName, artistName } = scrobble;
+      const upsertState = db.prepare(
+        `INSERT INTO app_state (key, value) VALUES (?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`
+      );
+      upsertState.run('last_scrobble_ts', String(ts));
+      if (trackName)  upsertState.run('last_track_name',   trackName);
+      if (artistName) upsertState.run('last_track_artist', artistName);
+      console.log(`  last scrobble: ${new Date(ts * 1000).toISOString()} — ${trackName}`);
     }
   } catch (err) {
     console.warn(`  last_scrobble_ts: FAILED — ${err.message}`);
@@ -319,9 +327,14 @@ app.get('/api/counts', (req, res) => {
   ).get();
   const lastScrobbleTs = tsRow ? parseInt(tsRow.value, 10) : null;
 
+  const trackNameRow   = db.prepare(`SELECT value FROM app_state WHERE key = 'last_track_name'`).get();
+  const trackArtistRow = db.prepare(`SELECT value FROM app_state WHERE key = 'last_track_artist'`).get();
+
   res.json({
     counts,
-    lastScrobbleTs, // Unix seconds — null until first poll completes
+    lastScrobbleTs,   // Unix seconds — null until first poll completes
+    lastTrackName:   trackNameRow?.value   ?? null,
+    lastTrackArtist: trackArtistRow?.value ?? null,
     demo: !LASTFM_KEY,
   });
 });
