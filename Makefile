@@ -34,3 +34,21 @@ poll:
 # Trigger a Last.fm poll on the remote deployed container
 poll-remote:
 	ssh $(DEPLOY_HOST) 'curl -s -X POST http://localhost:$(PORT)/api/poll' | jq .
+
+# ── Jump to a service (run on the server) ─────────────────────────────────────
+.PHONY: msge skjenelangs daggerheart bot hetzner
+
+msge:
+	cd /var/www/msge-no && exec $$SHELL
+
+skjenelangs:
+	cd /var/www/skjenelangs.no && exec $$SHELL
+
+daggerheart:
+	cd /var/www/daggerheart-app/river-sky && exec $$SHELL
+
+bot:
+	cd /opt/activitypub-mcp && exec $$SHELL
+
+hetzner:
+	cd /root/hetzner-server && exec $$SHELL
