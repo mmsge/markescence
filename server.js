@@ -30,16 +30,19 @@ const TRACKS = [
   { id: 'say-my-name',                artist: 'Maisie Peters', track: 'Say My Name In Your Sleep',           display: 'Say My Name In Your Sleep',       color: '#3a7fa8', releaseDate: '2025-11-19' },
   { id: 'kingmaker',                  artist: 'Maisie Peters', track: 'Kingmaker (with Julia Michaels)',      display: 'Kingmaker',                       color: '#8a6e9a', releaseDate: '2026-03-01', altArtist: 'Julia Michaels' },
   // Album-only tracks
-  { id: 'mary-janes',                 artist: 'Maisie Peters', track: 'Mary Janes',                          display: 'Mary Janes',                      color: '#d4564e', releaseDate: '2026-05-22' },
-  { id: 'old-fashioned',              artist: 'Maisie Peters', track: 'Old Fashioned',                       display: 'Old Fashioned',                   color: '#c49050', releaseDate: '2026-05-22' },
-  { id: 'houses',                     artist: 'Maisie Peters', track: 'Houses',                              display: 'Houses',                          color: '#2d9e8a', releaseDate: '2026-05-22' },
-  { id: 'vampire-time',               artist: 'Maisie Peters', track: 'Vampire Time',                        display: 'Vampire Time',                    color: '#6e4eb0', releaseDate: '2026-05-22' },
-  { id: 'if-you-let-me',              artist: 'Maisie Peters', track: 'If You Let Me (with Marcus Mumford)', display: 'If You Let Me',                   color: '#4e88c4', releaseDate: '2026-05-22', altArtist: 'Marcus Mumford' },
-  { id: 'flat-earther',               artist: 'Maisie Peters', track: 'Flat Earther',                        display: 'Flat Earther',                    color: '#9e2d4e', releaseDate: '2026-05-22' },
-  { id: 'questions',                  artist: 'Maisie Peters', track: 'Questions',                           display: 'Questions',                       color: '#7a9e4e', releaseDate: '2026-05-22' },
-  { id: 'girls-just-flying',          artist: 'Maisie Peters', track: "Girl's Just Flying",                  display: "Girl's Just Flying",              color: '#c46e9e', releaseDate: '2026-05-22' },
-  { id: 'you-then-me-now',            artist: 'Maisie Peters', track: 'You Then Me Now',                     display: 'You Then Me Now',                 color: '#8a9e5a', releaseDate: '2026-05-22' },
-  { id: 'nothing-like-being-in-love', artist: 'Maisie Peters', track: 'Nothing Like Being In Love',          display: 'Nothing Like Being In Love',      color: '#4e7a9e', releaseDate: '2026-05-22' },
+  // altTrack covers the stylised alternating-case names submitted by some scrobblers
+  // (e.g. "MaRy JaNeS") which Last.fm stores as a separate entry from the proper title.
+  // "Girl's Just Flying" also uses a curly apostrophe (U+2019) in the stylised form.
+  { id: 'mary-janes',                 artist: 'Maisie Peters', track: 'Mary Janes',                          altTrack: 'MaRy JaNeS',                                    display: 'Mary Janes',                      color: '#d4564e', releaseDate: '2026-05-22' },
+  { id: 'old-fashioned',              artist: 'Maisie Peters', track: 'Old Fashioned',                       altTrack: 'OlD fAsHiOnEd',                                 display: 'Old Fashioned',                   color: '#c49050', releaseDate: '2026-05-22' },
+  { id: 'houses',                     artist: 'Maisie Peters', track: 'Houses',                              altTrack: 'hOuSeS',                                        display: 'Houses',                          color: '#2d9e8a', releaseDate: '2026-05-22' },
+  { id: 'vampire-time',               artist: 'Maisie Peters', track: 'Vampire Time',                                                                                   display: 'Vampire Time',                    color: '#6e4eb0', releaseDate: '2026-05-22' },
+  { id: 'if-you-let-me',              artist: 'Maisie Peters', track: 'If You Let Me (with Marcus Mumford)', altTrack: 'iF yOu LeT mE (wItH mArCuS mUmFoRd)',           display: 'If You Let Me',                   color: '#4e88c4', releaseDate: '2026-05-22', altArtist: 'Marcus Mumford' },
+  { id: 'flat-earther',               artist: 'Maisie Peters', track: 'Flat Earther',                        altTrack: 'FlAt EaRtHeR',                                  display: 'Flat Earther',                    color: '#9e2d4e', releaseDate: '2026-05-22' },
+  { id: 'questions',                  artist: 'Maisie Peters', track: 'Questions',                           altTrack: 'qUeStIoNs',                                     display: 'Questions',                       color: '#7a9e4e', releaseDate: '2026-05-22' },
+  { id: 'girls-just-flying',          artist: 'Maisie Peters', track: "Girl's Just Flying",                  altTrack: 'GiRl’S jUsT fLyInG',                       display: "Girl's Just Flying",              color: '#c46e9e', releaseDate: '2026-05-22' },
+  { id: 'you-then-me-now',            artist: 'Maisie Peters', track: 'You Then Me Now',                     altTrack: 'yOu ThEn Me NoW',                               display: 'You Then Me Now',                 color: '#8a9e5a', releaseDate: '2026-05-22' },
+  { id: 'nothing-like-being-in-love', artist: 'Maisie Peters', track: 'Nothing Like Being In Love',          altTrack: 'nOtHiNg LiKe BeInG iN lOvE',                   display: 'Nothing Like Being In Love',      color: '#4e7a9e', releaseDate: '2026-05-22' },
 ];
 
 // ── OG Image ──────────────────────────────────────────────────────────────────
@@ -250,6 +253,13 @@ async function pollCounts() {
   for (const t of TRACKS) {
     try {
       let count = await fetchTrackCount(t.artist, t.track);
+      // Some scrobblers submit stylised alternating-case track names (e.g. "GiRl'S jUsT
+      // fLyInG") that Last.fm stores as a separate entry. altTrack lets us query that
+      // variant and take whichever count is higher.
+      if (t.altTrack) {
+        const alt = await fetchTrackCount(t.artist, t.altTrack);
+        count = Math.max(count, alt);
+      }
       if (t.altArtist) {
         const alt = await fetchTrackCount(t.altArtist, t.track);
         count = Math.max(count, alt); // Last.fm counts the same scrobble under one artist
