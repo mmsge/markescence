@@ -1,37 +1,28 @@
-IMAGE     = markescence
-CONTAINER = markescence
-PORT      = 4002
-DEPLOY_HOST = ap-mcp
+PORT        = 4002
+DEPLOY_HOST = msge
 DEPLOY_DIR  = /var/www/markescence
 
 .PHONY: deploy build run stop logs status ssh poll poll-remote
 
 # Pull latest code, rebuild image, restart container
-deploy: build run
+deploy:
+	git pull --ff-only
+	docker compose up -d --build
 
 build:
-	podman build -t $(IMAGE) .
+	docker compose build
 
 run:
-	-podman stop $(CONTAINER) 2>/dev/null; podman rm $(CONTAINER) 2>/dev/null; true
-	mkdir -p db
-	podman run -d \
-		--name $(CONTAINER) \
-		--restart=always \
-		-p 127.0.0.1:$(PORT):4001 \
-		-v ./db:/app/db:Z \
-		--env-file .env \
-		$(IMAGE)
+	docker compose up -d
 
 stop:
-	podman stop $(CONTAINER)
-	podman rm $(CONTAINER)
+	docker compose down
 
 logs:
-	podman logs -f $(CONTAINER)
+	docker compose logs -f
 
 status:
-	podman ps --filter name=$(CONTAINER)
+	docker compose ps
 
 ssh:
 	ssh -t $(DEPLOY_HOST) 'cd $(DEPLOY_DIR) && exec $$SHELL'

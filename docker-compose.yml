@@ -1,0 +1,9 @@
+services:
+  markescence:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "4002:4001"
+    volumes:
+      - ./db:/app/db
+    env_file: .env

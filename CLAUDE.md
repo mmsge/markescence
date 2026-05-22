@@ -9,7 +9,7 @@ This service runs on a shared Hetzner VPS (SSH alias `msge`, IP `157.180.66.111`
 | Server path | `/var/www/markescence` |
 | Domain | `markescence.msge.no` |
 | Host port | `4002` (must be `0.0.0.0:4002`, not `127.0.0.1:4002`) |
-| Runtime | Podman (rootless) |
+| Runtime | Docker Compose |
 | Deploy | `make deploy` (pulls latest code, rebuilds image, restarts container) |
 
 ## Central ingress — do not manage Caddy here
