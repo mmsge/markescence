@@ -362,10 +362,39 @@
     font-style: italic;
   }
 
+  /* ── NOW PLAYING ── */
+  .now-playing {
+    max-width: 900px;
+    margin: 0 auto 1.5rem;
+    padding: 0 2rem;
+    display: none;
+  }
+
+  .now-playing-inner {
+    border: 1px solid rgba(74,158,122,0.35);
+    border-radius: 4px;
+    padding: 0.9rem 1.2rem;
+    background: rgba(74,158,122,0.05);
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.08em;
+    color: var(--sage);
+  }
+
+  .now-playing-track {
+    font-family: 'Playfair Display', serif;
+    font-size: 0.9rem;
+    font-weight: 400;
+    font-style: italic;
+    color: var(--ink);
+  }
+
   /* ── RESPONSIVE ── */
   @media (max-width: 600px) {
     header { padding: 2.5rem 1.2rem 1.5rem; }
-    .chart-wrap, .section, .album-banner { padding: 0 1.2rem; }
+    .chart-wrap, .section, .album-banner, .now-playing { padding: 0 1.2rem; }
     .stats-row { padding: 0 1.2rem; flex-wrap: wrap; }
     .stat { min-width: 50%; }
     .chart-canvas-wrap { height: 280px; }
@@ -390,6 +419,13 @@
 </header>
 
 <div class="botanical-rule"></div>
+
+<div class="now-playing" id="nowPlaying">
+  <div class="now-playing-inner">
+    <span>♪</span>
+    <span>currently playing — <span class="now-playing-track" id="nowPlayingTrack"></span></span>
+  </div>
+</div>
 
 <div class="stats-row" id="statsRow">
   <div class="stat"><div class="stat-n" id="statTotal">—</div><div class="stat-label">Total plays</div></div>
@@ -865,6 +901,23 @@ function updateStats() {
     active[leaderIdx].display.split(' ').slice(0, 2).join(' ');
 }
 
+// ── NOW PLAYING ───────────────────────────────────────────────────────────────
+const NOW_PLAYING_MAX_AGE_S = 5 * 60; // 5 minutes
+
+function updateNowPlaying(lastScrobbleTs, trackName) {
+  const card    = document.getElementById('nowPlaying');
+  const trackEl = document.getElementById('nowPlayingTrack');
+  if (lastScrobbleTs && trackName) {
+    const age = Math.floor(Date.now() / 1000) - lastScrobbleTs;
+    if (age < NOW_PLAYING_MAX_AGE_S) {
+      trackEl.textContent = trackName;
+      card.style.display  = 'block';
+      return;
+    }
+  }
+  card.style.display = 'none';
+}
+
 // ── LIVE REFRESH ──────────────────────────────────────────────────────────────
 // Re-fetches /api/counts from the server DB (which the background poller keeps
 // current every 60 s). No direct Last.fm calls from the browser.
@@ -872,7 +925,7 @@ async function refreshCounts() {
   try {
     const res = await fetch('/api/counts');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { counts, lastScrobbleTs, demo } = await res.json();
+    const { counts, lastScrobbleTs, lastTrackName, demo } = await res.json();
     if (demo) return;
 
     for (const td of TRACKS) {
@@ -884,6 +937,7 @@ async function refreshCounts() {
     updateChartWithLive();
     updateStats();
     updateTrackTable();
+    updateNowPlaying(lastScrobbleTs, lastTrackName);
 
     if (lastScrobbleTs) {
       document.getElementById('lastScrobble').textContent =
@@ -958,7 +1012,7 @@ async function fetchInitialCounts() {
   try {
     const res = await fetch('/api/counts');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const { counts, demo } = await res.json();
+    const { counts, lastScrobbleTs, lastTrackName, demo } = await res.json();
 
     serverDemo = !!demo;
 
@@ -973,6 +1027,7 @@ async function fetchInitialCounts() {
     updateStats();
     updateTrackTable();
     updateChartWithLive();
+    updateNowPlaying(lastScrobbleTs, lastTrackName);
 
     if (lastScrobbleTs) {
       document.getElementById('lastScrobble').textContent =
