@@ -18,7 +18,7 @@ run:
 	podman run -d \
 		--name $(CONTAINER) \
 		--restart=always \
-		-p $(PORT):4001 \
+		-p 127.0.0.1:$(PORT):4001 \
 		-v ./db:/app/db:Z \
 		-e LASTFM_API_KEY=$(LASTFM_API_KEY) \
 		$(IMAGE)
