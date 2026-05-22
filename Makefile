@@ -20,7 +20,7 @@ run:
 		--restart=always \
 		-p $(PORT):4001 \
 		-v ./db:/app/db:Z \
-		-e LASTFM_API_KEY=$(LASTFM_API_KEY) \
+		--env-file .env \
 		$(IMAGE)
 
 stop:
