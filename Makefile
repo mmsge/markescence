@@ -1,6 +1,6 @@
 PORT        = 4002
 DEPLOY_HOST = msge
-DEPLOY_DIR  = /var/www/markescence
+DEPLOY_DIR  = /srv/markescence
 
 .PHONY: deploy build run stop logs status ssh poll poll-remote
 
@@ -39,16 +39,16 @@ poll-remote:
 .PHONY: msge skjenelangs daggerheart bot hetzner
 
 msge:
-	cd /var/www/msge-no && exec $$SHELL
+	cd /srv/msge && exec $$SHELL
 
 skjenelangs:
-	cd /var/www/skjenelangs.no && exec $$SHELL
+	cd /srv/skjenelangs && exec $$SHELL
 
 daggerheart:
-	cd /var/www/daggerheart-app/river-sky && exec $$SHELL
+	cd /srv/rpg && exec $$SHELL
 
 bot:
-	cd /opt/activitypub-mcp && exec $$SHELL
+	cd /srv/bot && exec $$SHELL
 
 hetzner:
 	cd /root/hetzner-server && exec $$SHELL

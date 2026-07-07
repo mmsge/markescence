@@ -1,3 +1,5 @@
+name: markescence
+
 services:
   markescence:
     build: .
