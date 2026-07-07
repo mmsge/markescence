@@ -6,7 +6,7 @@ This service runs on a shared Hetzner VPS (SSH alias `msge`, IP `157.180.66.111`
 
 | Key | Value |
 |-----|-------|
-| Server path | `/var/www/markescence` |
+| Server path | `/srv/markescence` |
 | Domain | `markescence.msge.no` |
 | Host port | `4002` (must be `0.0.0.0:4002`, not `127.0.0.1:4002`) |
 | Runtime | Docker Compose |
@@ -33,7 +33,7 @@ TLS and routing are handled centrally in **`github.com/mmsge/hetzner-server`** â
 
 ## Environment
 
-Requires `.env` on the server at `/var/www/markescence/.env` with Last.fm credentials.
+Requires `.env` on the server at `/srv/markescence/.env` with Last.fm credentials.
 Never commit `.env` to git.
 
 ## Last.fm polling
