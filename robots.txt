@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://markescence.msge.no/sitemap.xml
