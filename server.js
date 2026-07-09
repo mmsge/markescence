@@ -303,6 +303,10 @@ async function pollCounts() {
 const app = express();
 app.use(express.json());
 
+// Unauthenticated liveness probe for the container healthcheck
+// (hetzner-server ADR 0006 — box_health scrapes Docker health status).
+app.get('/healthz', (_req, res) => res.type('text').send('ok'));
+
 // Manual poll trigger — POST /api/poll
 // Runs pollCounts() immediately and waits for it to finish.
 app.post('/api/poll', async (req, res) => {
