@@ -1,5 +1,7 @@
 # Markescence
 
+[![deployed](https://img.shields.io/endpoint?url=https://utrulla.msge.no/badge/mmsge/markescence)](https://markescence.msge.no)
+
 ![Deploy](https://github.com/mmsge/markescence/actions/workflows/deploy.yaml/badge.svg)
 
 Real-time cumulative scrobble chart for Maisie Peters' *Florescence* pre-release singles,
