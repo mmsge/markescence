@@ -7,9 +7,11 @@ DEPLOY_DIR  = /srv/markescence
 # Pull latest code, rebuild image, restart container
 deploy:
 	git pull --ff-only
+	./scripts/generate-page-dates.sh || echo "WARN: page dates not regenerated — site will stamp boot time"
 	docker compose up -d --build
 
 build:
+	./scripts/generate-page-dates.sh || echo "WARN: page dates not regenerated — site will stamp boot time"
 	docker compose build
 
 run:
