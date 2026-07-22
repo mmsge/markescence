@@ -18,6 +18,35 @@ const LASTFM_USER = 'mvrkws';
 const POLL_MS     = 60 * 1000; // 1 minute
 const SITE_URL    = 'https://markescence.msge.no';
 
+// ── Site created/modified dates derived from git history ────────────────────
+// Written by scripts/generate-page-dates.sh (pure git + POSIX sh), run by
+// `make deploy`/`make build` on the checkout — `.git` isn't in the Docker
+// build context, so the container can only ever see the generated file.
+// Absent file (e.g. a bare `docker build`/`docker compose build` that skipped
+// the Makefile hook) ⇒ falls back to boot time. Site-level, single page: same
+// pattern as msge-no (ADR 0004) and hetzner-server (ADR 0015).
+const ISO_NOW = new Date().toISOString();
+const PAGE_DATES = (() => {
+  try {
+    const d = JSON.parse(fs.readFileSync(path.join(__dirname, 'page-dates.json'), 'utf8'));
+    return { created: d.created || ISO_NOW, modified: d.modified || ISO_NOW };
+  } catch {
+    return { created: ISO_NOW, modified: ISO_NOW };
+  }
+})();
+
+function stampDates(text) {
+  return text
+    .replace(/__PAGE_CREATED_ISO__/g, PAGE_DATES.created)
+    .replace(/__PAGE_MODIFIED_ISO__/g, PAGE_DATES.modified);
+}
+
+// Stamped once at boot and served from memory so the placeholders never ship
+// raw; index.html's live counts come from client-side /api/counts fetches, so
+// the markup itself is static and a git-derived Last-Modified stays truthful.
+const indexHtml  = stampDates(fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'));
+const sitemapXml = stampDates(fs.readFileSync(path.join(__dirname, 'sitemap.xml'), 'utf8'));
+
 // ── Tracks ────────────────────────────────────────────────────────────────────
 // Mirrors the TRACKS array in index.html — server adds color + releaseDate
 // so the OG image generator can use them without duplication.
@@ -372,7 +401,18 @@ app.get('/og-image.png', async (req, res) => {
   }
 });
 
-// Static files — serve index.html at root
+// Date-stamped static pages, served from memory rather than express.static so
+// the __PAGE_*_ISO__ placeholders never ship raw. Last-Modified is the
+// git-derived modified date; conditional GETs (req.fresh) get a bodyless 304.
+app.get('/', (req, res) => {
+  res.set('Last-Modified', new Date(PAGE_DATES.modified).toUTCString());
+  if (req.fresh) return res.status(304).end();
+  res.type('html').send(indexHtml);
+});
+app.get('/index.html', (_req, res) => res.redirect(301, '/'));
+app.get('/sitemap.xml', (_req, res) => res.type('xml').send(sitemapXml));
+
+// Static files — everything else (robots.txt, /og-image.png handled above)
 app.use(express.static(__dirname, {
   index: 'index.html',
   extensions: ['html'],
