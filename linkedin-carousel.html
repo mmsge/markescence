@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Markescence — LinkedIn Carousel</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --cream: #f5f0e8;
+    --ink: #1a1208;
+    --rust: #c4622d;
+    --rust-light: #e8845a;
+    --gold: #9b7e2a;
+    --sage: #4a9e7a;
+    --slate: #3a7fa8;
+    --mauve: #8a6e9a;
+    --muted: #8a7e6e;
+    --muted-light: #b8a890;
+    --line: rgba(26,18,8,0.1);
+    --dark-bg: #1a1208;
+  }
+
+  html, body {
+    background: #2a2520;
+    font-family: 'DM Mono', monospace;
+  }
+
+  .page-header {
+    text-align: center;
+    padding: 40px 20px 20px;
+    color: #8a7e6e;
+    font-size: 12px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .print-note {
+    text-align: center;
+    padding: 10px;
+    color: #666;
+    font-size: 11px;
+    margin-bottom: 30px;
+    font-family: monospace;
+  }
+
+  .slides-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 30px;
+    padding: 20px;
+  }
+
+  /* ── SLIDE BASE ── */
+  .slide {
+    width: 1080px;
+    height: 1080px;
+    background: var(--cream);
+    position: relative;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  /* Grain texture overlay */
+  .slide::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.6;
+  }
+
+  /* Rust accent bar */
+  .slide-accent-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: var(--rust);
+    opacity: 0.75;
+    z-index: 10;
+  }
+
+  .slide-accent-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 6px;
+    background: var(--rust);
+    opacity: 0.25;
+    z-index: 10;
+  }
+
+  /* Slide number */
+  .slide-num {
+    position: absolute;
+    bottom: 32px;
+    right: 52px;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--muted);
+    z-index: 20;
+    opacity: 0.6;
+  }
+
+  /* URL watermark */
+  .slide-url {
+    position: absolute;
+    bottom: 32px;
+    left: 52px;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    z-index: 20;
+    opacity: 0.6;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 1 — COVER
+  ───────────────────────────────────────────── */
+  .slide-1 {
+    background: var(--cream);
+  }
+
+  .slide-1 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px;
+    text-align: center;
+    z-index: 10;
+  }
+
+  /* Decorative botanical SVG background */
+  .slide-1 .bg-botanical {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .slide-1 .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 36px;
+    z-index: 10;
+  }
+
+  .slide-1 h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 78px;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+    margin-bottom: 8px;
+    z-index: 10;
+  }
+
+  .slide-1 h1 em {
+    font-style: italic;
+    color: var(--rust);
+  }
+
+  .slide-1 .rule {
+    width: 120px;
+    height: 1px;
+    background: var(--muted);
+    opacity: 0.4;
+    margin: 36px auto;
+    z-index: 10;
+  }
+
+  .slide-1 .subtitle {
+    font-size: 17px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 680px;
+    z-index: 10;
+  }
+
+  .slide-1 .tag {
+    margin-top: 52px;
+    display: inline-flex;
+    gap: 12px;
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--rust);
+    z-index: 10;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 2 — THE FAN
+  ───────────────────────────────────────────── */
+  .slide-2 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 100px;
+    z-index: 10;
+  }
+
+  .slide-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 28px;
+  }
+
+  .slide-heading {
+    font-family: 'Playfair Display', serif;
+    font-size: 58px;
+    font-weight: 400;
+    line-height: 1.1;
+    color: var(--ink);
+    margin-bottom: 48px;
+  }
+
+  .slide-heading em {
+    font-style: italic;
+    color: var(--rust);
+  }
+
+  .timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    border-left: 2px solid rgba(196,98,45,0.3);
+    padding-left: 36px;
+    margin-left: 8px;
+  }
+
+  .timeline-item {
+    position: relative;
+    padding-bottom: 36px;
+  }
+
+  .timeline-item:last-child {
+    padding-bottom: 0;
+  }
+
+  .timeline-dot {
+    position: absolute;
+    left: -44px;
+    top: 5px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--rust);
+    opacity: 0.7;
+  }
+
+  .timeline-date {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 6px;
+  }
+
+  .timeline-text {
+    font-family: 'Playfair Display', serif;
+    font-size: 24px;
+    font-weight: 400;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+
+  .timeline-text small {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-weight: 300;
+    letter-spacing: 0.04em;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 3 — STATIC SITE
+  ───────────────────────────────────────────── */
+  .slide-3 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 100px;
+    z-index: 10;
+  }
+
+  .arch-diagram {
+    margin-top: 40px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .arch-row {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+
+  .arch-box {
+    background: rgba(255,255,255,0.6);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px 24px;
+    flex: 1;
+  }
+
+  .arch-box .label {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 6px;
+  }
+
+  .arch-box .title {
+    font-family: 'Playfair Display', serif;
+    font-size: 20px;
+    color: var(--ink);
+  }
+
+  .arch-box .detail {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 4px;
+    line-height: 1.5;
+    letter-spacing: 0.02em;
+  }
+
+  .arch-arrow {
+    font-size: 24px;
+    color: var(--muted);
+    opacity: 0.4;
+    flex-shrink: 0;
+  }
+
+  .arch-connector {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 20px;
+  }
+
+  .arch-connector-line {
+    width: 2px;
+    height: 100%;
+    background: rgba(196,98,45,0.25);
+  }
+
+  .pros-list {
+    margin-top: 36px;
+    display: flex;
+    gap: 16px;
+  }
+
+  .pro-tag {
+    background: rgba(74,158,122,0.12);
+    border: 1px solid rgba(74,158,122,0.25);
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: var(--sage);
+    letter-spacing: 0.08em;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 4 — THE PROBLEM
+  ───────────────────────────────────────────── */
+  .slide-4 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 100px;
+    z-index: 10;
+  }
+
+  .problem-grid {
+    margin-top: 48px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+  }
+
+  .problem-card {
+    background: rgba(196,98,45,0.06);
+    border: 1px solid rgba(196,98,45,0.2);
+    border-radius: 8px;
+    padding: 28px 32px;
+  }
+
+  .problem-card .icon {
+    font-size: 28px;
+    margin-bottom: 14px;
+  }
+
+  .problem-card .title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .problem-card .desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+    letter-spacing: 0.02em;
+  }
+
+  .realisation {
+    margin-top: 44px;
+    padding: 28px 36px;
+    background: var(--rust);
+    border-radius: 8px;
+    color: white;
+  }
+
+  .realisation p {
+    font-family: 'Playfair Display', serif;
+    font-size: 26px;
+    font-style: italic;
+    font-weight: 400;
+    line-height: 1.4;
+  }
+
+  .realisation small {
+    display: block;
+    font-family: 'DM Mono', monospace;
+    font-size: 12px;
+    font-style: normal;
+    margin-top: 10px;
+    opacity: 0.75;
+    letter-spacing: 0.12em;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 5 — SERVER SOLUTION
+  ───────────────────────────────────────────── */
+  .slide-5 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 80px 100px;
+    z-index: 10;
+  }
+
+  .stack-grid {
+    margin-top: 44px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+
+  .stack-item {
+    background: rgba(255,255,255,0.55);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 24px 22px;
+    position: relative;
+  }
+
+  .stack-item.highlight {
+    background: rgba(196,98,45,0.07);
+    border-color: rgba(196,98,45,0.3);
+  }
+
+  .stack-item .stack-label {
+    font-size: 10px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 8px;
+  }
+
+  .stack-item .stack-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 22px;
+    color: var(--ink);
+    margin-bottom: 6px;
+  }
+
+  .stack-item .stack-detail {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.6;
+    letter-spacing: 0.02em;
+  }
+
+  .upgrade-badge {
+    margin-top: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 28px;
+    border: 1px solid rgba(74,158,122,0.3);
+    border-radius: 40px;
+    background: rgba(74,158,122,0.08);
+  }
+
+  .upgrade-badge .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--sage);
+    flex-shrink: 0;
+  }
+
+  .upgrade-badge span {
+    font-size: 14px;
+    color: var(--sage);
+    letter-spacing: 0.08em;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 6 — LINE CHART
+  ───────────────────────────────────────────── */
+  .slide-6 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 70px 70px 80px;
+    z-index: 10;
+  }
+
+  .slide-6 .chart-header {
+    margin-bottom: 24px;
+  }
+
+  .slide-6 .chart-container {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+  }
+
+  .chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px 20px;
+    margin-top: 20px;
+  }
+
+  .chart-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+
+  .chart-legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 7 — BAR CHART (LEADERBOARD)
+  ───────────────────────────────────────────── */
+  .slide-7 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    padding: 70px 70px 80px;
+    z-index: 10;
+  }
+
+  .slide-7 .chart-header {
+    margin-bottom: 28px;
+  }
+
+  .slide-7 .chart-container {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+  }
+
+  /* ─────────────────────────────────────────────
+     SLIDE 8 — CLOSING
+  ───────────────────────────────────────────── */
+  .slide-8 {
+    background: var(--dark-bg);
+  }
+
+  .slide-8::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse at 70% 30%, rgba(196,98,45,0.12) 0%, transparent 60%);
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .slide-8 .slide-accent-top {
+    opacity: 1;
+    height: 4px;
+  }
+
+  .slide-8 .inner {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 80px 100px;
+    z-index: 10;
+    text-align: center;
+  }
+
+  .slide-8 .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: rgba(196,98,45,0.8);
+    margin-bottom: 32px;
+  }
+
+  .slide-8 h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 60px;
+    font-weight: 400;
+    line-height: 1.1;
+    color: #f5f0e8;
+    margin-bottom: 8px;
+  }
+
+  .slide-8 h2 em {
+    font-style: italic;
+    color: var(--rust-light);
+  }
+
+  .slide-8 .rule {
+    width: 100px;
+    height: 1px;
+    background: rgba(245,240,232,0.2);
+    margin: 36px auto;
+  }
+
+  .slide-8 .tagline {
+    font-size: 18px;
+    color: rgba(245,240,232,0.6);
+    letter-spacing: 0.08em;
+    line-height: 1.7;
+    max-width: 600px;
+    margin-bottom: 60px;
+  }
+
+  .slide-8 .links {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .slide-8 .link-chip {
+    padding: 14px 28px;
+    border: 1px solid rgba(245,240,232,0.2);
+    border-radius: 40px;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    color: rgba(245,240,232,0.75);
+    text-transform: uppercase;
+  }
+
+  .slide-8 .link-chip.primary {
+    background: var(--rust);
+    border-color: var(--rust);
+    color: #fff;
+    font-weight: 500;
+  }
+
+  .slide-8 .slide-url,
+  .slide-8 .slide-num {
+    color: rgba(245,240,232,0.3);
+  }
+
+  /* ── SHARED SECTION STYLES ── */
+  .section-eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 16px;
+  }
+
+  .section-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 52px;
+    font-weight: 400;
+    line-height: 1.1;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  .section-title em {
+    font-style: italic;
+    color: var(--rust);
+  }
+
+  .section-body {
+    font-size: 18px;
+    color: var(--muted);
+    line-height: 1.7;
+    max-width: 820px;
+    margin-top: 12px;
+    letter-spacing: 0.02em;
+  }
+
+  /* Decorative horizontal rule */
+  .h-rule {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(196,98,45,0.4), transparent);
+    margin: 36px 0;
+  }
+
+  /* ── SLIDE PAGE NUMBERS FOR PRINT ── */
+  @media print {
+    body { background: white; }
+    .page-header, .print-note { display: none; }
+    .slide { page-break-after: always; margin: 0; }
+    .slides-wrapper { gap: 0; padding: 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="page-header">Markescence — LinkedIn Carousel · 8 Slides · 1080×1080px</div>
+<div class="print-note">📎 Print this page or screenshot each slide to create your LinkedIn PDF carousel</div>
+
+<div class="slides-wrapper">
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 1 — COVER
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-1">
+    <div class="slide-accent-top"></div>
+
+    <!-- Botanical SVG background decoration -->
+    <svg class="bg-botanical" viewBox="0 0 1080 1080" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Corner botanical sprigs -->
+      <g opacity="0.08" stroke="#c4622d" stroke-width="1">
+        <path d="M 40 40 Q 60 100 100 80 Q 140 60 160 120" />
+        <path d="M 60 40 Q 80 90 60 130" />
+        <path d="M 40 60 Q 90 70 80 110" />
+        <circle cx="100" cy="80" r="4" fill="#c4622d" stroke="none"/>
+        <circle cx="60" cy="130" r="3" fill="#c4622d" stroke="none"/>
+
+        <path d="M 1040 40 Q 1020 100 980 80 Q 940 60 920 120" />
+        <path d="M 1020 40 Q 1000 90 1020 130" />
+        <path d="M 1040 60 Q 990 70 1000 110" />
+        <circle cx="980" cy="80" r="4" fill="#c4622d" stroke="none"/>
+        <circle cx="1020" cy="130" r="3" fill="#c4622d" stroke="none"/>
+
+        <path d="M 40 1040 Q 60 980 100 1000 Q 140 1020 160 960" />
+        <path d="M 60 1040 Q 80 990 60 950" />
+        <circle cx="100" cy="1000" r="4" fill="#c4622d" stroke="none"/>
+
+        <path d="M 1040 1040 Q 1020 980 980 1000 Q 940 1020 920 960" />
+        <path d="M 1020 1040 Q 1000 990 1020 950" />
+        <circle cx="980" cy="1000" r="4" fill="#c4622d" stroke="none"/>
+      </g>
+
+      <!-- Subtle grid lines -->
+      <g opacity="0.05" stroke="#1a1208" stroke-width="0.5">
+        <line x1="0" y1="540" x2="1080" y2="540"/>
+        <line x1="540" y1="0" x2="540" y2="1080"/>
+      </g>
+
+      <!-- Large decorative arc -->
+      <path d="M 200 900 Q 540 200 880 900" stroke="#c4622d" stroke-width="0.8" fill="none" opacity="0.07"/>
+      <path d="M 150 950 Q 540 150 930 950" stroke="#9b7e2a" stroke-width="0.5" fill="none" opacity="0.05"/>
+    </svg>
+
+    <div class="inner">
+      <div class="eyebrow" style="z-index:10">A Maisie Peters Fan Project · Last.fm + Node.js</div>
+      <h1 style="z-index:10">Marks of<br><em>Florescence</em></h1>
+      <div class="rule" style="z-index:10"></div>
+      <div class="subtitle" style="z-index:10">
+        I built a real-time scrobble tracker to visualise my listening journey
+        to Maisie Peters' debut studio album — from first single to release day.
+      </div>
+      <div class="tag" style="z-index:10">
+        <span>Static → Server</span>
+        <span style="opacity:0.4">·</span>
+        <span>What I learned</span>
+        <span style="opacity:0.4">·</span>
+        <span>markescence.msge.no</span>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">1 / 8</div>
+    <div class="slide-accent-bottom"></div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 2 — THE FAN'S MOTIVATION
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-2">
+    <div class="slide-accent-top"></div>
+
+    <div class="inner">
+      <div class="section-eyebrow">The backstory</div>
+      <div class="section-title">I'm a huge<br><em>Maisie Peters</em> fan</div>
+      <div class="section-body">
+        When she announced <em style="font-style:italic; color:var(--rust)">Florescence</em> in late 2025,
+        I was already obsessively scrobbling her music on Last.fm.
+        I wanted to <em style="font-style:italic; color:var(--ink)">see</em> my listening arc — not just feel it.
+      </div>
+
+      <div class="h-rule"></div>
+
+      <div class="timeline">
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-date">Oct 2025</div>
+          <div class="timeline-text">
+            <em style="font-style:italic">Audrey Hepburn</em> &amp; <em style="font-style:italic">You You You</em> drop
+            <small>I immediately looped them. The scrobble counter climbs.</small>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-date">Nov–Feb 2026</div>
+          <div class="timeline-text">
+            More singles. The hunger grows.
+            <small>Say My Name In Your Sleep · Kingmaker · My Regards — each one a new obsession</small>
+          </div>
+        </div>
+        <div class="timeline-item">
+          <div class="timeline-dot"></div>
+          <div class="timeline-date">May 22, 2026</div>
+          <div class="timeline-text">
+            <em style="font-style:italic">Florescence</em> — the full album — arrives 🌸
+            <small>1,571+ cumulative plays tracked from day one</small>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">2 / 8</div>
+    <div class="slide-accent-bottom"></div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 3 — ATTEMPT 1: STATIC SITE
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-3">
+    <div class="slide-accent-top"></div>
+
+    <div class="inner">
+      <div class="section-eyebrow">Attempt 1</div>
+      <div class="section-title">Start simple:<br>a pure <em>static site</em></div>
+      <div class="section-body">
+        A single <code style="font-size:16px; background:rgba(0,0,0,0.06); padding:2px 8px; border-radius:3px; color:var(--rust)">index.html</code> with Chart.js.
+        No server. No database. Just hardcoded weekly data and GitHub Pages.
+      </div>
+
+      <div class="arch-diagram">
+        <div class="arch-row">
+          <div class="arch-box" style="flex:1.2">
+            <div class="label">Data source</div>
+            <div class="title">Last.fm API</div>
+            <div class="detail">Queried directly from the browser — API key injected via GitHub Actions sed command</div>
+          </div>
+          <div class="arch-arrow">→</div>
+          <div class="arch-box">
+            <div class="label">Deployment</div>
+            <div class="title">GitHub Pages</div>
+            <div class="detail">Static HTML, rebuilt daily via cron trigger on push to <code>gh-pages</code> branch</div>
+          </div>
+        </div>
+
+        <div class="arch-connector"><div class="arch-connector-line"></div></div>
+
+        <div class="arch-row">
+          <div class="arch-box" style="border-color: rgba(196,98,45,0.25);">
+            <div class="label">Visualisation</div>
+            <div class="title">Chart.js 4.4.1</div>
+            <div class="detail">Cumulative line chart · 5 tracks · Weekly data points hardcoded inline</div>
+          </div>
+          <div class="arch-arrow">+</div>
+          <div class="arch-box">
+            <div class="label">Updates</div>
+            <div class="title">Once a day</div>
+            <div class="detail">GitHub Actions rebuilds the page each morning. Fresh enough... for now.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pros-list">
+        <div class="pro-tag">✓ Zero infrastructure</div>
+        <div class="pro-tag">✓ Free to host</div>
+        <div class="pro-tag">✓ Ships in an afternoon</div>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">3 / 8</div>
+    <div class="slide-accent-bottom"></div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 4 — THE PROBLEM
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-4">
+    <div class="slide-accent-top"></div>
+
+    <div class="inner">
+      <div class="section-eyebrow">The problem</div>
+      <div class="section-title">Static wasn't<br><em>enough</em></div>
+
+      <div class="problem-grid">
+        <div class="problem-card">
+          <div class="icon">🕐</div>
+          <div class="title">24-hour lag</div>
+          <div class="desc">
+            GitHub Actions ran once a day. New listens appeared stale by the time the chart updated.
+            On album release day, I wanted <em>live</em> numbers.
+          </div>
+        </div>
+        <div class="problem-card">
+          <div class="icon">🔑</div>
+          <div class="title">API key exposure</div>
+          <div class="desc">
+            Injecting a Last.fm API key via <code style="background:rgba(0,0,0,0.06); padding:1px 5px; border-radius:2px">sed</code> in CI
+            keeps it out of git, but still ships it to every visitor's browser.
+          </div>
+        </div>
+        <div class="problem-card">
+          <div class="icon">📦</div>
+          <div class="title">No persistence</div>
+          <div class="desc">
+            Each rebuild hit the API fresh. No time-series history.
+            A single API failure and the whole chart reverted to defaults.
+          </div>
+        </div>
+        <div class="problem-card">
+          <div class="icon">🌸</div>
+          <div class="title">Release day energy</div>
+          <div class="desc">
+            On <em>Florescence</em> release day I wanted to watch the numbers climb in real time —
+            not refresh 24 hours later.
+          </div>
+        </div>
+      </div>
+
+      <div class="realisation">
+        <p>"I need a proper server. Something that polls, persists, and serves live data."</p>
+        <small>— me, probably at 11pm on a Tuesday</small>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">4 / 8</div>
+    <div class="slide-accent-bottom"></div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 5 — SERVER SOLUTION
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-5">
+    <div class="slide-accent-top"></div>
+
+    <div class="inner">
+      <div class="section-eyebrow">Attempt 2</div>
+      <div class="section-title">Building a<br>real <em>backend</em></div>
+      <div class="section-body">
+        Rebuilt as a Node.js webapp. The server polls Last.fm silently —
+        the browser only ever talks to <code style="font-size:15px; background:rgba(0,0,0,0.06); padding:2px 8px; border-radius:3px; color:var(--rust)">/api/counts</code>.
+      </div>
+
+      <div class="stack-grid">
+        <div class="stack-item highlight">
+          <div class="stack-label">Runtime</div>
+          <div class="stack-title">Node.js 22</div>
+          <div class="stack-detail">Express HTTP server · Alpine Docker container</div>
+        </div>
+        <div class="stack-item highlight">
+          <div class="stack-label">Polling</div>
+          <div class="stack-title">Every 60 s</div>
+          <div class="stack-detail">Server fetches Last.fm silently — API key never leaves the container</div>
+        </div>
+        <div class="stack-item highlight">
+          <div class="stack-label">Persistence</div>
+          <div class="stack-title">SQLite</div>
+          <div class="stack-detail">Time-series history — one row per track per poll cycle</div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-label">Hosting</div>
+          <div class="stack-title">Hetzner VPS</div>
+          <div class="stack-detail">Containerised with Podman · markescence.msge.no</div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-label">OG Images</div>
+          <div class="stack-title">SVG → PNG</div>
+          <div class="stack-detail">Resvg renders bar charts server-side for social sharing previews</div>
+        </div>
+        <div class="stack-item">
+          <div class="stack-label">Frontend</div>
+          <div class="stack-title">Vanilla JS</div>
+          <div class="stack-detail">Zero runtime deps · Chart.js via CDN · same index.html</div>
+        </div>
+      </div>
+
+      <div class="upgrade-badge">
+        <div class="dot"></div>
+        <span>Live — updating every 60 seconds · Last scrobble tracked in real time</span>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">5 / 8</div>
+    <div class="slide-accent-bottom"></div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 6 — LINE CHART: Cumulative plays over time
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-6">
+    <div class="slide-accent-top"></div>
+
+    <div class="inner">
+      <div class="chart-header">
+        <div class="section-eyebrow">The data · Oct 2025 → May 2026</div>
+        <div class="section-title" style="font-size:42px">Cumulative plays, week by week</div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="lineChart"></canvas>
+      </div>
+
+      <div class="chart-legend" id="lineLegend">
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#c4622d"></div>My Regards</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#9b7e2a"></div>Audrey Hepburn</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#4a9e7a"></div>You You You</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#3a7fa8"></div>Say My Name In Your Sleep</div>
+        <div class="chart-legend-item"><div class="chart-legend-dot" style="background:#8a6e9a"></div>Kingmaker</div>
+        <div class="chart-legend-item" style="margin-left:auto; opacity:0.5; font-size:10px;">▲ Album release day (May 22)</div>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">6 / 8</div>
+    <div class="slide-accent-bottom"></div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 7 — BAR CHART: Track leaderboard
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-7">
+    <div class="slide-accent-top"></div>
+
+    <div class="inner">
+      <div class="chart-header">
+        <div class="section-eyebrow">Album release day · May 22, 2026</div>
+        <div class="section-title" style="font-size:42px">Pre-release scrobble leaderboard</div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="barChart"></canvas>
+      </div>
+
+      <div class="chart-legend" style="margin-top:16px;">
+        <div class="chart-legend-item" style="opacity:0.6; font-size:11px;">
+          Singles only — album tracks (Mary Janes, Houses, Vampire Time…) start tracking from today
+        </div>
+        <div class="chart-legend-item" style="margin-left:auto; color:var(--rust); font-size:11px; font-family:'Playfair Display',serif; font-style:italic;">
+          Total: 1,571 plays
+        </div>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">7 / 8</div>
+    <div class="slide-accent-bottom"></div>
+  </div>
+
+
+  <!-- ══════════════════════════════════════════════
+       SLIDE 8 — CLOSING / CTA
+  ══════════════════════════════════════════════ -->
+  <div class="slide slide-8">
+    <div class="slide-accent-top"></div>
+
+    <div class="inner">
+      <div class="eyebrow">Open source · Last.fm + Node.js</div>
+      <h2>Marks of<br><em>Florescence</em></h2>
+      <div class="rule"></div>
+
+      <div class="tagline">
+        Built out of love for an album, and curiosity about what real-time
+        data feels like when it's your own listening history.
+        <br><br>
+        From a static GitHub Pages file to a live Express + SQLite webapp —
+        sometimes a fan project teaches you more than a tutorial ever could.
+      </div>
+
+      <div class="links">
+        <div class="link-chip primary">markescence.msge.no</div>
+        <div class="link-chip">github.com/mmsge/markescence</div>
+        <div class="link-chip">Last.fm / mvrkws</div>
+      </div>
+    </div>
+
+    <div class="slide-url" style="z-index:20">markescence.msge.no</div>
+    <div class="slide-num" style="z-index:20">8 / 8</div>
+  </div>
+
+</div><!-- /slides-wrapper -->
+
+
+<script>
+// ── REAL DATA FROM THE PROJECT ──────────────────────────────────────────────
+// Dates: week starting 9 Oct 2025 through album release 22 May 2026
+const weeks = [
+  '9 Oct','16 Oct','23 Oct','30 Oct',
+  '6 Nov','13 Nov','20 Nov','27 Nov',
+  '4 Dec','11 Dec','18 Dec','25 Dec',
+  '1 Jan','8 Jan','15 Jan','22 Jan','29 Jan',
+  '5 Feb','12 Feb','19 Feb','26 Feb',
+  '5 Mar','12 Mar','19 Mar','26 Mar',
+  '2 Apr','9 Apr','16 Apr','23 Apr','30 Apr',
+  '7 May','14 May','21 May','22 May',
+];
+
+const HISTORY = {
+  'my-regards':    [null,null,null,null, null,null,null,null, null,null,null,null, null,null,null,null,null, 12,28,52,84, 140,220,310,390, 420,450,480,510,530, 536,542,546,546],
+  'audrey-hepburn':[8,18,28,36, 42,48,54,60, 66,71,76,82, 88,94,100,108,116, 124,133,142,153, 165,200,240,275, 300,320,338,352,362, 368,374,379,379],
+  'you-you-you':   [7,16,25,33, 39,44,49,55, 61,66,71,77, 83,89,95,103,111, 119,128,137,148, 160,195,234,268, 292,312,330,343,352, 356,363,355,355],
+  'say-my-name':   [null,null,null,null, null,4,10,18, 26,34,42,50, 58,66,74,82,90, 98,108,118,130, 142,170,190,200, 206,212,215,216,218, 219,219,219,219],
+  'kingmaker':     [null,null,null,null, null,null,null,null, null,null,null,null, null,null,null,null,null, null,null,null,null, null,4,10,18, 26,32,36,44,58, 62,68,72,72],
+};
+
+const TRACK_COLORS = {
+  'my-regards':    '#c4622d',
+  'audrey-hepburn':'#9b7e2a',
+  'you-you-you':   '#4a9e7a',
+  'say-my-name':   '#3a7fa8',
+  'kingmaker':     '#8a6e9a',
+};
+
+const TRACK_LABELS = {
+  'my-regards':    'My Regards',
+  'audrey-hepburn':'Audrey Hepburn',
+  'you-you-you':   'You You You',
+  'say-my-name':   'Say My Name In Your Sleep',
+  'kingmaker':     'Kingmaker',
+};
+
+// ── LINE CHART (Slide 6) ─────────────────────────────────────────────────────
+(function buildLineChart() {
+  const ctx = document.getElementById('lineChart').getContext('2d');
+
+  const datasets = Object.entries(HISTORY).map(([id, rawData]) => {
+    // Prepend a zero anchor one step before first real value
+    const data = [...rawData];
+    const firstIdx = data.findIndex(v => v !== null);
+    if (firstIdx > 0) data[firstIdx - 1] = 0;
+
+    return {
+      label: TRACK_LABELS[id],
+      data,
+      borderColor: TRACK_COLORS[id],
+      backgroundColor: TRACK_COLORS[id] + '18',
+      borderWidth: id === 'my-regards' ? 3 : 2,
+      pointRadius: 0,
+      pointHoverRadius: 4,
+      tension: 0.35,
+      spanGaps: false,
+      fill: false,
+    };
+  });
+
+  // Custom plugin: release date vertical markers
+  const releasePlugin = {
+    id: 'releaseLines',
+    afterDraw(chart) {
+      const { ctx: c, chartArea, scales } = chart;
+      const markers = [
+        { idx: 0,  label: 'Audrey Hepburn & YYY', color: '#9b7e2a', side: 'right' },
+        { idx: 6,  label: 'Say My Name',           color: '#3a7fa8', side: 'right' },
+        { idx: 17, label: 'My Regards',             color: '#c4622d', side: 'right' },
+        { idx: 21, label: 'Kingmaker',              color: '#8a6e9a', side: 'right' },
+        { idx: 33, label: '★ Florescence',          color: '#c4622d', side: 'left',  bold: true },
+      ];
+      markers.forEach(m => {
+        const x = scales.x.getPixelForValue(m.idx);
+        c.save();
+        c.strokeStyle = m.bold ? 'rgba(196,98,45,0.6)' : 'rgba(26,18,8,0.15)';
+        c.lineWidth   = m.bold ? 2.5 : 1;
+        c.setLineDash(m.bold ? [6, 3] : [3, 3]);
+        c.beginPath();
+        c.moveTo(x, chartArea.top);
+        c.lineTo(x, chartArea.bottom);
+        c.stroke();
+
+        c.fillStyle = m.bold ? '#c4622d' : '#8a7e6e';
+        c.font      = `${m.bold ? '500 ' : ''}11px "DM Mono", monospace`;
+        c.textAlign = 'center';
+        c.fillText(m.label, x, chartArea.top + (m.bold ? 16 : 16));
+        c.restore();
+      });
+    }
+  };
+
+  new Chart(ctx, {
+    type: 'line',
+    data: { labels: weeks, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+        releaseLines: {},
+      },
+      scales: {
+        x: {
+          type: 'category',
+          ticks: {
+            color: '#8a7e6e',
+            font: { family: "'DM Mono', monospace", size: 10.5 },
+            maxTicksLimit: 10,
+            autoSkip: true,
+            maxRotation: 0,
+          },
+          grid: { color: 'rgba(26,18,8,0.06)', drawBorder: false },
+        },
+        y: {
+          min: 0,
+          max: 580,
+          ticks: {
+            color: '#8a7e6e',
+            font: { family: "'DM Mono', monospace", size: 11 },
+            stepSize: 100,
+          },
+          grid: { color: 'rgba(26,18,8,0.06)', drawBorder: false },
+          title: {
+            display: true,
+            text: 'cumulative plays',
+            color: '#8a7e6e',
+            font: { family: "'DM Mono', monospace", size: 10.5 },
+          },
+        },
+      },
+    },
+    plugins: [releasePlugin],
+  });
+})();
+
+
+// ── BAR CHART (Slide 7) ──────────────────────────────────────────────────────
+(function buildBarChart() {
+  const ctx = document.getElementById('barChart').getContext('2d');
+
+  const finalCounts = {
+    'my-regards':    546,
+    'audrey-hepburn':379,
+    'you-you-you':   355,
+    'say-my-name':   219,
+    'kingmaker':      72,
+  };
+
+  const sorted = Object.entries(finalCounts).sort((a, b) => b[1] - a[1]);
+
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: sorted.map(([id]) => TRACK_LABELS[id]),
+      datasets: [{
+        data: sorted.map(([, v]) => v),
+        backgroundColor: sorted.map(([id]) => TRACK_COLORS[id] + 'cc'),
+        borderColor:     sorted.map(([id]) => TRACK_COLORS[id]),
+        borderWidth: 1,
+        borderRadius: 4,
+        borderSkipped: false,
+      }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+        // Custom data labels
+        afterDraw: true,
+      },
+      scales: {
+        x: {
+          min: 0,
+          max: 600,
+          ticks: {
+            color: '#8a7e6e',
+            font: { family: "'DM Mono', monospace", size: 11 },
+            stepSize: 100,
+          },
+          grid: { color: 'rgba(26,18,8,0.06)', drawBorder: false },
+          title: {
+            display: true,
+            text: 'total plays',
+            color: '#8a7e6e',
+            font: { family: "'DM Mono', monospace", size: 11 },
+          },
+        },
+        y: {
+          ticks: {
+            color: '#1a1208',
+            font: { family: "'Playfair Display', serif", size: 18, style: 'italic' },
+          },
+          grid: { display: false },
+        },
+      },
+    },
+    plugins: [{
+      id: 'barLabels',
+      afterDatasetsDraw(chart) {
+        const { ctx: c, data } = chart;
+        data.datasets[0].data.forEach((val, i) => {
+          const meta = chart.getDatasetMeta(0);
+          const bar  = meta.data[i];
+          const x    = bar.x + 10;
+          const y    = bar.y;
+          c.save();
+          c.fillStyle = sorted[i][0] === 'my-regards' ? '#c4622d' : '#1a1208';
+          c.font      = `${sorted[i][0] === 'my-regards' ? '600 ' : ''}14px "DM Mono", monospace`;
+          c.textAlign = 'left';
+          c.textBaseline = 'middle';
+          c.fillText(`${val} plays`, x, y);
+          c.restore();
+        });
+      }
+    }],
+  });
+})();
+</script>
+
+</body>
+</html>
