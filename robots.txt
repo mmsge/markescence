@@ -1,4 +1,9 @@
 User-agent: *
 Allow: /
 
+# Ops endpoints — useful to agents and the box's probe, not content for an index.
+Disallow: /healthz
+Disallow: /version
+Disallow: /health
+
 Sitemap: https://markescence.msge.no/sitemap.xml
