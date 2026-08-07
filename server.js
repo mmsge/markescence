@@ -35,6 +35,43 @@ const PAGE_DATES = (() => {
   }
 })();
 
+// ── This image's git identity (/version) ────────────────────────────────────
+// Written by scripts/generate-build-info.sh on the CHECKOUT at `make deploy`,
+// BEFORE the image build, and COPY'd in last. The image has no .git, so this
+// file is the only place the running build's SHA exists — which is the point:
+// a `git pull` that skipped a rebuild leaves the container serving the old
+// commit, and only an image-baked /version can see that. Absent file ⇒
+// source "unknown" with null fields; never a guess, never a 500.
+// Box-wide contract: hetzner-server ADR 0022.
+const SLUG    = 'markescence';
+const STARTED = Date.now();
+// no-store on all three ops endpoints — caching the endpoint you use to
+// *detect* a stale deploy defeats the endpoint.
+const NO_STORE = { 'Cache-Control': 'no-store' };
+
+const BUILD_INFO = (() => {
+  const base = {
+    service: SLUG, commit: null, commit_short: null, branch: null,
+    commit_time: null, repo: null, dirty: null, built_at: null,
+    source: 'unknown',
+  };
+  try {
+    const f = JSON.parse(fs.readFileSync(path.join(__dirname, 'build-info.json'), 'utf8'));
+    // Only allowlisted keys survive — /version is public, so an extra field
+    // that creeps into the generator can never leak through here.
+    const picked = Object.fromEntries(Object.entries(f).filter(([k]) => k in base));
+    return { ...base, ...picked, service: SLUG, source: 'build-info' };
+  } catch {
+    return base;
+  }
+})();
+
+// A successful poll is at most POLL_MS old. Anything past this means the
+// background poller has stopped landing counts — a dead timer, a Last.fm
+// outage, or a missing API key. Degraded, never error: the page still serves
+// the counts it already has, and a 503 here would be a lie about the site.
+const POLL_STALE_S = 15 * 60;
+
 function stampDates(text) {
   return text
     .replace(/__PAGE_CREATED_ISO__/g, PAGE_DATES.created)
@@ -332,9 +369,112 @@ async function pollCounts() {
 const app = express();
 app.use(express.json());
 
-// Unauthenticated liveness probe for the container healthcheck
-// (hetzner-server ADR 0006 — box_health scrapes Docker health status).
-app.get('/healthz', (_req, res) => res.type('text').send('ok'));
+// ── Ops contract: /healthz, /version, /health ───────────────────────────────
+// Box-wide on every service (hetzner-server ADR 0006 + ADR 0022; full spec in
+// hetzner-server/docs/health-and-version-contract.md). Registered HERE, above
+// every other route and well above the express.static fall-through at the
+// bottom of this file — Express resolves in registration order, and a static
+// mount rooted at __dirname would happily answer /health with a file.
+//
+// All three write their headers by hand rather than going through res.send /
+// res.json: those attach an ETag, and a conditional GET could then turn
+// /healthz into a bodyless 304, which the compose healthcheck byte-compares
+// against "ok" and would fail.
+
+// Liveness ONLY — no database, no upstream, no disk. The compose healthcheck
+// restarts the container on this, so touching a dependency here would turn a
+// slow Last.fm into a restart loop. Body is exactly "ok": two bytes, no
+// trailing newline, byte-compared by container healthchecks.
+app.get('/healthz', (_req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8', ...NO_STORE });
+  res.end('ok');
+});
+
+// Which commit is actually running — see BUILD_INFO above.
+app.get('/version', (_req, res) => {
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', ...NO_STORE });
+  res.end(JSON.stringify(BUILD_INFO));
+});
+
+// ── /health checks ──────────────────────────────────────────────────────────
+// THIS ENDPOINT IS PUBLIC AND REDACTED BY ALLOWLIST. Never emit a filesystem
+// path, an internal hostname/IP/port, an env var name or value, a DSN, SQL
+// text, a dependency version or an exception message — `err.message` carries
+// most of those. Only the contract's fixed `detail` vocabulary
+// (connection refused | timeout | auth failed | not found | parse error |
+// disk full | unavailable) or a plain count. `last.fm` is a public third-party
+// upstream, so naming it is allowed and is what makes the check actionable.
+
+// One statement answers both substantive questions this service has: is the
+// SQLite store readable, and how long since the poller last landed counts in
+// it. Age is computed in SQL because updated_at is stored as SQLite's naive
+// UTC `datetime('now')`, which JS's Date would misread as local time.
+function checkStore() {
+  const t0 = process.hrtime.bigint();
+  try {
+    const row = db.prepare(`
+      SELECT COUNT(*) AS n,
+             CAST(strftime('%s','now') - MAX(strftime('%s', updated_at)) AS INTEGER) AS age
+      FROM   track_counts
+    `).get();
+    const latency_ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    const database = {
+      name: 'database',
+      status: 'ok',
+      latency_ms: Math.round(latency_ms * 10) / 10,
+      detail: `${row.n} rows`,
+    };
+
+    // No rows yet means the first poll hasn't landed — true for the first few
+    // seconds after boot, and permanently if the poller can never reach
+    // Last.fm. Either way the counts the site exists to show are missing.
+    if (row.age === null || row.n === 0) {
+      return [database, { name: 'upstream:last.fm', status: 'degraded', detail: 'not found' }];
+    }
+    const age_seconds = Math.max(0, row.age);
+    return [database, {
+      name: 'upstream:last.fm',
+      status: age_seconds > POLL_STALE_S ? 'degraded' : 'ok',
+      age_seconds,
+    }];
+  } catch {
+    // Classified words only — the exception text would carry the db path.
+    return [
+      { name: 'database', status: 'error', detail: 'unavailable' },
+      { name: 'upstream:last.fm', status: 'degraded', detail: 'unavailable' },
+    ];
+  }
+}
+
+// The OG image is rendered by an optional native module; when it fails to load
+// /og-image.png 501s while every other route keeps working. Exactly the kind of
+// half-broken that /healthz cannot see.
+function checkRender() {
+  if (!Resvg) return { name: 'render', status: 'degraded', detail: 'unavailable' };
+  return { name: 'render', status: 'ok', detail: `${TRACKS.length} tracks` };
+}
+
+app.get('/health', (_req, res) => {
+  const checks = [...checkStore(), checkRender()];
+  const status = checks.some(c => c.status === 'error') ? 'error'
+               : checks.some(c => c.status === 'degraded') ? 'degraded'
+               : 'ok';
+  const body = {
+    status,
+    service: SLUG,
+    commit_short: BUILD_INFO.commit_short,
+    started_at: new Date(STARTED).toISOString(),
+    uptime_seconds: Math.floor((Date.now() - STARTED) / 1000),
+    checked_at: new Date().toISOString(),
+    checks,
+  };
+  // `degraded` stays 200 — only a real failure is 503. If degraded returned
+  // 503 and someone pointed a container healthcheck at /health, a slow Last.fm
+  // would restart this container forever.
+  res.writeHead(status === 'error' ? 503 : 200,
+                { 'Content-Type': 'application/json; charset=utf-8', ...NO_STORE });
+  res.end(JSON.stringify(body));
+});
 
 // Manual poll trigger — POST /api/poll
 // Runs pollCounts() immediately and waits for it to finish.
