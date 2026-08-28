@@ -24,7 +24,7 @@ const SITE_URL    = 'https://markescence.msge.no';
 // build context, so the container can only ever see the generated file.
 // Absent file (e.g. a bare `docker build`/`docker compose build` that skipped
 // the Makefile hook) ⇒ falls back to boot time. Site-level, single page: same
-// pattern as msge-no (ADR 0004) and hetzner-server (ADR 0015).
+// pattern as msge-no (ADR 0004) and naustet-server (ADR 0015).
 const ISO_NOW = new Date().toISOString();
 const PAGE_DATES = (() => {
   try {
@@ -333,7 +333,7 @@ const app = express();
 app.use(express.json());
 
 // Unauthenticated liveness probe for the container healthcheck
-// (hetzner-server ADR 0006 — box_health scrapes Docker health status).
+// (naustet-server ADR 0006 — box_health scrapes Docker health status).
 app.get('/healthz', (_req, res) => res.type('text').send('ok'));
 
 // Manual poll trigger — POST /api/poll

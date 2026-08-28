@@ -15,7 +15,7 @@
 # NOTE: a shallow clone (e.g. CI fetch-depth: 1) collapses both dates onto
 # the latest commit; the server checkout is a full clone.
 #
-# Same pattern as msge-no (ADR 0004) and hetzner-server (ADR 0015).
+# Same pattern as msge-no (ADR 0004) and naustet-server (ADR 0015).
 set -eu
 cd "$(dirname "$0")/.."
 
