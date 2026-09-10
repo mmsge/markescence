@@ -317,7 +317,7 @@ async function pollCounts() {
       upsertState.run('last_scrobble_ts', String(ts));
       if (trackName)  upsertState.run('last_track_name',   trackName);
       if (artistName) upsertState.run('last_track_artist', artistName);
-      console.log(`  last scrobble: ${new Date(ts * 1000).toISOString()} — ${trackName}`);
+      console.log(`  last scrobble: ${new Date(ts * 1000).toISOString()}`);
     }
   } catch (err) {
     console.warn(`  last_scrobble_ts: FAILED — ${err.message}`);
