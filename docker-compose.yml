@@ -4,6 +4,13 @@ services:
   markescence:
     build: .
     restart: unless-stopped
+    mem_limit: 256m
+    # Cap the container log: json-file never rotates on its own, and 10m x 3 is also how much output survives an outage of the central log collector (naustet-server ADR 0032).
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     ports:
       - "4002:4001"
     volumes:
